@@ -71,22 +71,22 @@ export function Topbar({ onOpenMobileDrawer }: { onOpenMobileDrawer?: () => void
       sessionStorage.removeItem("presentation_mute_alerts");
     }
 
-    // 2. Dispatch client-side Emergency Alert Event immediately for 100% Vercel reliability
+    // 2. Dispatch client-side Emergency Alert Event with user requested specs: 2.6A, 120V, 25°C, 64%
     const testAlertEvent = new CustomEvent("trigger_emergency_alert", {
       detail: {
         alertId: `al-${Date.now()}`,
         deviceId: device.id || "TR-0042",
         deviceName: device.name || "Smart Transformer",
-        location: device.location || "Sector 4B, Pimpri-Chinchwad",
+        location: device.location || "Pimpri Substation Grid (18.6499, 73.7452)",
         lat: 18.649916,
         lng: 73.745276,
         googleMapUrl: `https://www.google.com/maps?q=18.649916,73.745276`,
-        cause: "Critical Over-current Overload (3.5A > 2.0A Safety Limit)",
+        cause: "Critical Over-current Overload (2.6A > 2.0A Safety Limit)",
         timestamp: new Date().toISOString(),
-        voltage: 231,
-        current: 3.5,
-        temperature: 64,
-        humidity: 48,
+        voltage: 120,
+        current: 2.6,
+        temperature: 25,
+        humidity: 64,
         relayState: "tripped",
       },
     });
@@ -189,7 +189,7 @@ export function Topbar({ onOpenMobileDrawer }: { onOpenMobileDrawer?: () => void
         {/* Test Alert Button */}
         <button
           onClick={handleTestAlert}
-          title="Test 2A Overload Emergency Pop-Up Alert"
+          title="Test 2.6A Overload Emergency Pop-Up Alert"
           className="h-8 px-2.5 rounded-full bg-error/15 border border-error/30 text-error flex items-center gap-1 text-[11px] sm:text-xs font-bold hover:bg-error/25 transition-colors cursor-pointer"
         >
           <ShieldAlert size={14} />

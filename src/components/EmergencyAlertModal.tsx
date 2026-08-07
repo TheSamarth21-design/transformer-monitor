@@ -62,21 +62,21 @@ export function EmergencyAlertModal() {
         triggerHapticVibration();
         playEmergencyAlarmSound(10);
       } else if (event.type === "RELAY_TRIPPED" && event.data) {
-        const cause = event.data.reason || "Over-current Protection Activated";
+        const cause = event.data.reason || "Critical Over-current Overload (2.6A > 2.0A Safety Limit)";
         setIsMuted(false);
         setAlertData({
           deviceId: "TR-0042",
           deviceName: "Smart Transformer",
-          location: "Sector 4B, Pimpri-Chinchwad",
-          lat: 18.650029,
-          lng: 73.745274,
-          googleMapUrl: `https://www.google.com/maps?q=18.650029,73.745274`,
+          location: "Pimpri Substation Grid (18.6499, 73.7452)",
+          lat: 18.649916,
+          lng: 73.745276,
+          googleMapUrl: `https://www.google.com/maps?q=18.649916,73.745276`,
           cause,
           timestamp: event.data.timestamp || new Date().toISOString(),
-          voltage: 231,
-          current: 3.5,
-          temperature: 64,
-          humidity: 48,
+          voltage: 120,
+          current: 2.6,
+          temperature: 25,
+          humidity: 64,
           relayState: "tripped",
         });
         triggerHapticVibration();
@@ -121,7 +121,7 @@ export function EmergencyAlertModal() {
   const rawUrl = alertData.googleMapUrl;
   const mapLink = (rawUrl && rawUrl.startsWith("http"))
     ? rawUrl
-    : `https://www.google.com/maps?q=${(alertData.lat && alertData.lat !== 0) ? alertData.lat : 18.650029},${(alertData.lng && alertData.lng !== 0) ? alertData.lng : 73.745274}`;
+    : `https://www.google.com/maps?q=${(alertData.lat && alertData.lat !== 0) ? alertData.lat : 18.649916},${(alertData.lng && alertData.lng !== 0) ? alertData.lng : 73.745276}`;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md p-4 animate-in fade-in duration-200">
