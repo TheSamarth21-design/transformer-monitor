@@ -2,9 +2,11 @@ import http from "node:http";
 import https from "node:https";
 import { get, run } from "./db.js";
 import { processTelemetryProtection } from "./protectionEngine.js";
+import { syncTelemetryToFirestore } from "./firebase.js";
 
 const DEFAULT_BLYNK_TOKEN = "uR3iUqcSJMTS7-OEfnsuSDj-5Sqrxl0L";
 let pollingTimer = null;
+let lastKnownOnlineState = null;
 
 // Simple HTTP/HTTPS GET JSON helper
 function httpGet(url) {
@@ -18,7 +20,7 @@ function httpGet(url) {
           try {
             resolve(JSON.parse(data));
           } catch {
-            resolve(data);
+            resolve(data.trim());
           }
         });
       })
@@ -34,6 +36,68 @@ export async function pollBlynkCloud(broadcastWs) {
 
     if (!token) return;
 
+    // 1. Check Real ESP32 Hardware Connection Status via Blynk API
+    const isConnectedUrl = `https://blynk.cloud/external/api/isHardwareConnected?token=${encodeURIComponent(token)}`;
+    const connectionStatus = await httpGet(isConnectedUrl);
+    const isHardwareOnline = connectionStatus === true || connectionStatus === "true";
+
+    const timestamp = new Date().toISOString();
+
+    // IF ESP32 HARDWARE IS POWERED OFF / DISCONNECTED
+    if (!isHardwareOnline) {
+      if (lastKnownOnlineState !== false) {
+        console.log("[Blynk Hardware Status] ESP32 is POWERED OFF / DISCONNECTED.");
+        lastKnownOnlineState = false;
+      }
+
+      await run(
+        `UPDATE device SET online = 0, status = 'offline', last_updated = ? WHERE id = ?`,
+        [timestamp, "TR-0042"]
+      );
+
+      const offlinePayload = {
+        voltage: 0,
+        current: 0,
+        temperature: 0,
+        humidity: 0,
+        timestamp,
+        lat: 18.6298,
+        lng: 73.8131,
+        relayState: "tripped",
+        health: "Hardware Offline (ESP32 Powered Off)",
+        alertMsg: "Device Disconnected from Blynk Cloud",
+        googleMapUrl: "https://www.google.com/maps?q=18.6298,73.8131",
+        online: false,
+      };
+
+      if (broadcastWs) {
+        broadcastWs({
+          type: "LIVE_READING",
+          data: offlinePayload,
+        });
+        broadcastWs({
+          type: "DEVICE_UPDATED",
+          data: {
+            id: "TR-0042",
+            name: "Smart Transformer",
+            location: "Sector 4B, Pimpri-Chinchwad",
+            lat: 18.6298,
+            lng: 73.8131,
+            status: "offline",
+            online: false,
+            lastUpdated: timestamp,
+          },
+        });
+      }
+      return;
+    }
+
+    // IF ESP32 HARDWARE IS ONLINE & POWERED ON
+    if (lastKnownOnlineState !== true) {
+      console.log("[Blynk Hardware Status] ESP32 POWERED ON & CONNECTED!");
+      lastKnownOnlineState = true;
+    }
+
     // Blynk REST API multi-pin get: https://blynk.cloud/external/api/get?token={token}&v0&v1&v2&v3&v4&v5&v6&v7&v8&v9
     const url = `https://blynk.cloud/external/api/get?token=${encodeURIComponent(
       token
@@ -44,11 +108,11 @@ export async function pollBlynkCloud(broadcastWs) {
     if (data && typeof data === "object") {
       // Parse Temperature (V0)
       const rawTemp = parseFloat(data.v0 ?? data.V0 ?? 0);
-      const temperature = rawTemp > 0 ? rawTemp : 31.2;
+      const temperature = rawTemp;
 
       // Parse Humidity (V1)
       const rawHum = parseFloat(data.v1 ?? data.V1 ?? 0);
-      const humidity = rawHum > 0 ? rawHum : 48.4;
+      const humidity = rawHum;
 
       // Parse Load Current (V2)
       // ACS712 zero-offset calibration: raw ~16.5A output at 0A load is normalized to nominal 0.8A
@@ -81,7 +145,7 @@ export async function pollBlynkCloud(broadcastWs) {
       const rawAlertMsg = String(data.v8 ?? data.V8 ?? "");
       const alertMsg = rawAlertMsg && rawAlertMsg !== "undefined" && !rawAlertMsg.includes("TRIPPED")
         ? rawAlertMsg
-        : "System Nominal & Protected";
+        : "System Nominal & Hardware Online";
 
       // Parse Google Maps Navigation Link (V9)
       const rawMapUrl = String(data.v9 ?? data.V9 ?? "");
@@ -89,13 +153,25 @@ export async function pollBlynkCloud(broadcastWs) {
         ? rawMapUrl
         : `https://www.google.com/maps?q=${lat},${lng}`;
 
-      const timestamp = new Date().toISOString();
-
-      // Save to database
+      // Save to SQLite database
       await run(
         `INSERT INTO telemetry (voltage, current, temperature, humidity, timestamp) VALUES (?, ?, ?, ?, ?)`,
         [voltage, current, temperature, humidity, timestamp]
       );
+
+      // Sync to Firebase Cloud Storage
+      syncTelemetryToFirestore({
+        voltage,
+        current,
+        temperature,
+        humidity,
+        lat,
+        lng,
+        relayState: relayPin === 1 ? "closed" : "tripped",
+        health,
+        alertMsg,
+        timestamp,
+      });
 
       // Update device coordinates and Google map link
       await run(
@@ -111,10 +187,11 @@ export async function pollBlynkCloud(broadcastWs) {
         timestamp,
         lat,
         lng,
-        relayState: "closed",
-        health: "Optimal (98%)",
-        alertMsg: "System Nominal & Protected",
+        relayState: relayPin === 1 ? "closed" : "tripped",
+        health,
+        alertMsg,
         googleMapUrl,
+        online: true,
       };
 
       // Run Protection Engine check
@@ -125,6 +202,19 @@ export async function pollBlynkCloud(broadcastWs) {
         broadcastWs({
           type: "LIVE_READING",
           data: reading,
+        });
+        broadcastWs({
+          type: "DEVICE_UPDATED",
+          data: {
+            id: "TR-0042",
+            name: "Smart Transformer",
+            location: "Sector 4B, Pimpri-Chinchwad",
+            lat,
+            lng,
+            status: "normal",
+            online: true,
+            lastUpdated: timestamp,
+          },
         });
       }
     }
