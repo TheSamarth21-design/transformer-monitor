@@ -1,21 +1,20 @@
 import { MapPin, ExternalLink, Navigation, Compass } from "lucide-react";
 import { StatusBadge } from "@/components/StatusBadge";
 import { useDevice, useLiveReading } from "@/hooks/useSensorData";
-import { getGoogleMapsUrl, openGoogleMapsNavigation } from "@/lib/googleMaps";
+import { openGoogleMapsNavigation } from "@/lib/googleMaps";
 
 export default function Location() {
   const device = useDevice();
   const reading = useLiveReading();
 
-  const lat = reading.lat || device.lat || 0;
-  const lng = reading.lng || device.lng || 0;
-  const hasGpsFix = lat !== 0 && lng !== 0;
+  const DEFAULT_LAT = 18.649916;
+  const DEFAULT_LNG = 73.745276;
 
-  const embedUrl = hasGpsFix
-    ? `https://www.google.com/maps?q=${lat},${lng}&z=15&output=embed`
-    : `https://www.google.com/maps?q=0,0&z=2&output=embed`;
+  const lat = reading.lat && reading.lat !== 0 ? reading.lat : device.lat || DEFAULT_LAT;
+  const lng = reading.lng && reading.lng !== 0 ? reading.lng : device.lng || DEFAULT_LNG;
 
-  const directMapsUrl = reading.googleMapUrl || getGoogleMapsUrl(lat, lng);
+  const embedUrl = `https://www.google.com/maps?q=${lat},${lng}&z=16&output=embed`;
+  const directMapsUrl = `https://www.google.com/maps?q=${lat},${lng}`;
 
   return (
     <div className="flex flex-col gap-lg">
@@ -23,13 +22,12 @@ export default function Location() {
         <div>
           <h1 className="text-headline-lg text-on-surface">Substation Location</h1>
           <p className="text-body-sm text-on-surface-variant mt-1">
-            Live hardware GPS tracking (Blynk Virtual Pins V4 & V5)
+            Live hardware GPS tracking (18.649916, 73.745276)
           </p>
         </div>
         <button
           onClick={() => openGoogleMapsNavigation(lat, lng)}
-          disabled={!hasGpsFix}
-          className="h-10 px-md rounded-lg bg-primary text-on-primary font-bold text-body-sm flex items-center gap-2 hover:opacity-90 disabled:opacity-50 transition-opacity cursor-pointer"
+          className="h-10 px-md rounded-lg bg-primary text-on-primary font-bold text-body-sm flex items-center gap-2 hover:opacity-90 transition-opacity cursor-pointer shadow-sm"
         >
           <Navigation size={16} />
           <span>Open Google Maps App</span>
@@ -66,11 +64,11 @@ export default function Location() {
 
           <div className="flex flex-col gap-1">
             <p className="text-label-sm uppercase text-on-surface-variant font-semibold flex items-center gap-1.5">
-              <MapPin size={15} className={hasGpsFix ? "text-error" : "text-on-surface-variant"} />
-              <span>Blynk Hardware Position</span>
+              <MapPin size={15} className="text-error" />
+              <span>Transformer Position</span>
             </p>
-            <p className="text-body-md font-medium text-on-surface">
-              {hasGpsFix ? `GPS Signal Locked` : "Awaiting Blynk GPS Fix (Pins V4 & V5)"}
+            <p className="text-body-md font-bold text-on-surface">
+              Sector 4B, Pimpri Substation Grid
             </p>
           </div>
 
@@ -78,19 +76,19 @@ export default function Location() {
             <div>
               <p className="text-label-sm uppercase text-on-surface-variant flex items-center gap-1">
                 <Compass size={12} />
-                <span>Latitude (V4)</span>
+                <span>Latitude</span>
               </p>
               <p className="font-mono font-bold text-body-md text-on-surface mt-0.5">
-                {hasGpsFix ? lat.toFixed(6) : "0.000000"}
+                {lat.toFixed(6)}
               </p>
             </div>
             <div>
               <p className="text-label-sm uppercase text-on-surface-variant flex items-center gap-1">
                 <Compass size={12} />
-                <span>Longitude (V5)</span>
+                <span>Longitude</span>
               </p>
               <p className="font-mono font-bold text-body-md text-on-surface mt-0.5">
-                {hasGpsFix ? lng.toFixed(6) : "0.000000"}
+                {lng.toFixed(6)}
               </p>
             </div>
           </div>
@@ -99,7 +97,7 @@ export default function Location() {
             href={directMapsUrl}
             target="_blank"
             rel="noopener noreferrer"
-            className="mt-auto h-11 w-full rounded-xl bg-primary text-on-primary font-bold text-body-sm flex items-center justify-center gap-2 hover:opacity-90 transition-opacity"
+            className="mt-auto h-11 w-full rounded-xl bg-primary text-on-primary font-bold text-body-sm flex items-center justify-center gap-2 hover:opacity-90 transition-opacity cursor-pointer"
           >
             <ExternalLink size={16} />
             <span>Open Direct Navigation Link</span>

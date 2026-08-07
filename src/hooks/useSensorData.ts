@@ -13,12 +13,16 @@ import { subscribeFirebaseLiveDevice, subscribeFirebaseTelemetryHistory, saveTel
 const BLYNK_TOKEN = "uR3iUqcSJMTS7-OEfnsuSDj-5Sqrxl0L";
 const BLYNK_POLL_URL = `https://blynk.cloud/external/api/get?token=${BLYNK_TOKEN}&v0&v1&v2&v3&v4&v5&v6&v7&v8&v9`;
 
+// Default Transformer Substation Coordinates (18.649916, 73.745276)
+const DEFAULT_LAT = 18.649916;
+const DEFAULT_LNG = 73.745276;
+
 const INITIAL_DEVICE: TransformerDevice = {
   id: "TR-0042",
   name: "Smart Transformer",
-  location: "Awaiting Blynk Hardware GPS Sync",
-  lat: 0,
-  lng: 0,
+  location: "Pimpri Substation Grid (18.6499, 73.7452)",
+  lat: DEFAULT_LAT,
+  lng: DEFAULT_LNG,
   status: "warning",
   online: false,
   lastUpdated: new Date().toISOString(),
@@ -30,11 +34,11 @@ export function useLiveReading(): LiveReading & { isHardwareOnline: boolean } {
     current: 0,
     temperature: 0,
     humidity: 0,
-    lat: 0,
-    lng: 0,
+    lat: DEFAULT_LAT,
+    lng: DEFAULT_LNG,
     health: "Awaiting Hardware Sync...",
     alertMsg: "",
-    googleMapUrl: "https://www.google.com/maps",
+    googleMapUrl: `https://www.google.com/maps?q=${DEFAULT_LAT},${DEFAULT_LNG}`,
     timestamp: new Date().toISOString(),
   });
 
@@ -68,11 +72,11 @@ export function useLiveReading(): LiveReading & { isHardwareOnline: boolean } {
           current: devData.current ?? prev.current,
           temperature: devData.temperature ?? prev.temperature,
           humidity: devData.humidity ?? prev.humidity,
-          lat: devData.lat ?? prev.lat,
-          lng: devData.lng ?? prev.lng,
+          lat: devData.lat || DEFAULT_LAT,
+          lng: devData.lng || DEFAULT_LNG,
           health: devData.health ?? prev.health,
           alertMsg: devData.alertMsg ?? prev.alertMsg,
-          googleMapUrl: devData.googleMapUrl ?? prev.googleMapUrl,
+          googleMapUrl: devData.googleMapUrl || `https://www.google.com/maps?q=${DEFAULT_LAT},${DEFAULT_LNG}`,
           timestamp: devData.lastUpdated ?? new Date().toISOString(),
         }));
         setIsHardwareOnline(Boolean((devData.voltage || 0) > 0 || (devData.current || 0) > 0));
@@ -93,17 +97,16 @@ export function useLiveReading(): LiveReading & { isHardwareOnline: boolean } {
         const hum = parseFloat(blynkData.v1) || 0;
         const cur = parseFloat(blynkData.v2) || 0;
         const volt = parseFloat(blynkData.v3) || 0;
-        const lat = parseFloat(blynkData.v4) || 0;
-        const lng = parseFloat(blynkData.v5) || 0;
+        const rawLat = parseFloat(blynkData.v4) || 0;
+        const rawLng = parseFloat(blynkData.v5) || 0;
+        const lat = rawLat !== 0 ? rawLat : DEFAULT_LAT;
+        const lng = rawLng !== 0 ? rawLng : DEFAULT_LNG;
         const relayVal = parseInt(blynkData.v6, 10);
         const relayState = relayVal === 1 ? "closed" : "tripped";
         const health = String(blynkData.v7 || "Hardware Online");
         const alertMsg = String(blynkData.v8 || "");
 
-        const googleMapUrl =
-          lat !== 0 && lng !== 0
-            ? `https://www.google.com/maps?q=${lat},${lng}`
-            : "https://www.google.com/maps";
+        const googleMapUrl = `https://www.google.com/maps?q=${lat},${lng}`;
 
         const realReading: LiveReading = {
           voltage: volt,
@@ -166,12 +169,12 @@ export function useDevice(): TransformerDevice {
           ...prev,
           name: devData.name || prev.name,
           location: devData.location || prev.location,
-          lat: devData.lat ?? prev.lat,
-          lng: devData.lng ?? prev.lng,
+          lat: devData.lat || DEFAULT_LAT,
+          lng: devData.lng || DEFAULT_LNG,
           status: devData.status || (devData.current > 2.0 ? "critical" : devData.current > 1.0 ? "warning" : "normal"),
           online: Boolean((devData.voltage || 0) > 0 || (devData.current || 0) > 0),
           lastUpdated: devData.lastUpdated || new Date().toISOString(),
-          googleMapsLink: devData.googleMapUrl || prev.googleMapsLink,
+          googleMapsLink: devData.googleMapUrl || `https://www.google.com/maps?q=${DEFAULT_LAT},${DEFAULT_LNG}`,
         }));
       }
     });
