@@ -16,15 +16,15 @@ const BLYNK_POLL_URL = `https://blynk.cloud/external/api/get?token=${BLYNK_TOKEN
 const INITIAL_DEVICE: TransformerDevice = {
   id: "TR-0042",
   name: "Smart Transformer",
-  location: "Awaiting Blynk GPS Fix",
+  location: "Awaiting Blynk Hardware GPS Sync",
   lat: 0,
   lng: 0,
   status: "normal",
-  online: true,
+  online: false,
   lastUpdated: new Date().toISOString(),
 };
 
-export function useLiveReading(): LiveReading {
+export function useLiveReading(): LiveReading & { isHardwareOnline: boolean } {
   const [reading, setReading] = useState<LiveReading>({
     voltage: 0,
     current: 0,
@@ -32,18 +32,21 @@ export function useLiveReading(): LiveReading {
     humidity: 0,
     lat: 0,
     lng: 0,
-    health: "Connecting...",
-    alertMsg: "Waiting for Blynk Cloud sync...",
+    health: "Awaiting Hardware Sync...",
+    alertMsg: "",
     googleMapUrl: "https://www.google.com/maps",
     timestamp: new Date().toISOString(),
   });
 
+  const [isHardwareOnline, setIsHardwareOnline] = useState<boolean>(false);
+
   useEffect(() => {
-    // 1. Initial backend REST fetch
+    // 1. Backend REST fetch (if local server running)
     apiRequest<LiveReading>("/telemetry/live")
       .then((data) => {
-        if (data && data.voltage !== undefined) {
+        if (data && typeof data.voltage === "number") {
           setReading(data);
+          setIsHardwareOnline(true);
         }
       })
       .catch(() => {});
@@ -52,6 +55,7 @@ export function useLiveReading(): LiveReading {
     const unsubscribeWs = subscribeWebSocket((event) => {
       if (event.type === "LIVE_READING" && event.data) {
         setReading(event.data);
+        setIsHardwareOnline(true);
       }
     });
 
@@ -71,15 +75,25 @@ export function useLiveReading(): LiveReading {
           googleMapUrl: devData.googleMapUrl ?? prev.googleMapUrl,
           timestamp: devData.lastUpdated ?? new Date().toISOString(),
         }));
+        setIsHardwareOnline(Boolean(devData.online));
       }
     });
 
-    // 4. Direct Blynk Cloud API Poller (Ensures 100% sync even without local backend)
+    // 4. Pure Real Blynk Hardware API Poller (NO DEMO DATA)
     const blynkPoller = setInterval(async () => {
       try {
         const res = await fetch(BLYNK_POLL_URL);
-        if (!res.ok) return;
+        if (!res.ok) {
+          setIsHardwareOnline(false);
+          return;
+        }
         const blynkData = await res.json();
+
+        // Check if real hardware pins are present
+        if (blynkData.v3 === undefined && blynkData.v0 === undefined) {
+          setIsHardwareOnline(false);
+          return;
+        }
 
         const temp = parseFloat(blynkData.v0) || 0;
         const hum = parseFloat(blynkData.v1) || 0;
@@ -89,15 +103,15 @@ export function useLiveReading(): LiveReading {
         const lng = parseFloat(blynkData.v5) || 0;
         const relayVal = parseInt(blynkData.v6, 10);
         const relayState = relayVal === 1 ? "closed" : "tripped";
-        const health = String(blynkData.v7 || "Nominal");
-        const alertMsg = String(blynkData.v8 || "System Normal");
+        const health = String(blynkData.v7 || "Hardware Online");
+        const alertMsg = String(blynkData.v8 || "");
 
         const googleMapUrl =
           lat !== 0 && lng !== 0
             ? `https://www.google.com/maps?q=${lat},${lng}`
             : "https://www.google.com/maps";
 
-        const newReading: LiveReading = {
+        const realReading: LiveReading = {
           voltage: volt,
           current: cur,
           temperature: temp,
@@ -111,12 +125,13 @@ export function useLiveReading(): LiveReading {
           timestamp: new Date().toISOString(),
         };
 
-        setReading(newReading);
+        setReading(realReading);
+        setIsHardwareOnline(true);
 
-        // Also save snapshot to Cloud Firestore
-        saveTelemetryToFirestore(newReading).catch(() => {});
+        // Sync real hardware telemetry snapshot to Cloud Firestore
+        saveTelemetryToFirestore(realReading).catch(() => {});
       } catch {
-        // Quiet fail if network offline
+        setIsHardwareOnline(false);
       }
     }, 3000);
 
@@ -127,7 +142,9 @@ export function useLiveReading(): LiveReading {
     };
   }, []);
 
-  return reading;
+  const result = { ...reading } as any;
+  result.isHardwareOnline = isHardwareOnline;
+  return result;
 }
 
 export function useDevice(): TransformerDevice {
@@ -213,7 +230,7 @@ export function useRelayStatus(): RelayStatus & {
         body: JSON.stringify({ reason }),
       });
     } catch {
-      // Direct Blynk API Fallback
+      // Direct Blynk Hardware API Command (V6 = 0)
       fetch(`https://blynk.cloud/external/api/update?token=${BLYNK_TOKEN}&v6=0`).catch(() => {});
     }
     setRelay((prev) => ({ ...prev, state: "tripped", lastTripReason: reason || "Manual Trip" }));
@@ -223,7 +240,7 @@ export function useRelayStatus(): RelayStatus & {
     try {
       await apiRequest("/relay/reset", { method: "POST" });
     } catch {
-      // Direct Blynk API Fallback
+      // Direct Blynk Hardware API Command (V6 = 1)
       fetch(`https://blynk.cloud/external/api/update?token=${BLYNK_TOKEN}&v6=1`).catch(() => {});
     }
     setRelay((prev) => ({ ...prev, state: "closed" }));
