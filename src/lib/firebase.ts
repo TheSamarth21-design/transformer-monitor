@@ -46,7 +46,7 @@ export async function saveTelemetryToFirestore(reading: any) {
       online: reading.online ?? true,
       lastUpdated: new Date().toISOString(),
     });
-  } catch (err) {
+  } catch {
     // Quiet error if firestore rules require auth or initial setup
   }
 }
@@ -55,8 +55,8 @@ export async function saveTelemetryToFirestore(reading: any) {
  * Realtime listener for live device document updates
  */
 export function subscribeFirebaseLiveDevice(callback: (device: any) => void) {
-  return onSnapshot(doc(db, "devices", "TR-0042"), (snapshot) => {
-    if (snapshot.exists()) {
+  return onSnapshot(doc(db, "devices", "TR-0042"), (snapshot: any) => {
+    if (snapshot && typeof snapshot.exists === "function" && snapshot.exists()) {
       callback(snapshot.data());
     }
   });
@@ -67,8 +67,10 @@ export function subscribeFirebaseLiveDevice(callback: (device: any) => void) {
  */
 export function subscribeFirebaseTelemetryHistory(callback: (items: any[]) => void) {
   const q = query(collection(db, "telemetry"), orderBy("createdAt", "desc"), limit(20));
-  return onSnapshot(q, (snapshot) => {
-    const items = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
-    callback(items);
+  return onSnapshot(q, (snapshot: any) => {
+    if (snapshot && snapshot.docs) {
+      const items = snapshot.docs.map((docItem: any) => ({ id: docItem.id, ...docItem.data() }));
+      callback(items);
+    }
   });
 }
