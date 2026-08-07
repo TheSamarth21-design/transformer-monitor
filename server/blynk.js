@@ -65,6 +65,7 @@ export async function pollBlynkCloud(broadcastWs) {
         lng: 73.745274,
         relayState: "tripped",
         health: "Hardware Offline",
+        healthScore: 0,
         alertMsg: "Device Disconnected from Blynk Cloud",
         googleMapUrl: "https://www.google.com/maps?q=18.650029,73.745274",
         online: false,
@@ -106,17 +107,25 @@ export async function pollBlynkCloud(broadcastWs) {
     const data = await httpGet(url);
 
     if (data && typeof data === "object") {
-      // Direct raw hardware telemetry values from ESP32 pins
+      // 100% Direct Hardware Telemetry Sync
       const temperature = parseFloat(data.v0 ?? data.V0 ?? 0);
       const humidity = parseFloat(data.v1 ?? data.V1 ?? 0);
       const current = parseFloat(data.v2 ?? data.V2 ?? 0);
+      
+      // Direct Voltage Sync from Blynk V3
       const voltage = parseFloat(data.v3 ?? data.V3 ?? 0);
 
       const lat = parseFloat(data.v4 ?? data.V4 ?? 18.650029) || 18.650029;
       const lng = parseFloat(data.v5 ?? data.V5 ?? 73.745274) || 73.745274;
 
       const relayPin = parseInt(data.v6 ?? data.V6 ?? 1, 10); // 1 = closed, 0 = tripped
-      const health = String(data.v7 ?? data.V7 ?? "Normal");
+      
+      // Direct Health Index Sync from Blynk V7
+      const rawHealthStr = String(data.v7 ?? data.V7 ?? "70");
+      const healthDigits = rawHealthStr.match(/\d+/);
+      const healthScore = healthDigits ? Math.min(100, Math.max(0, parseInt(healthDigits[0], 10))) : 70;
+      const health = rawHealthStr || `${healthScore}%`;
+
       const alertMsg = String(data.v8 ?? data.V8 ?? "Hardware Online");
 
       const rawMapUrl = String(data.v9 ?? data.V9 ?? "");
@@ -140,6 +149,7 @@ export async function pollBlynkCloud(broadcastWs) {
         lng,
         relayState: relayPin === 1 ? "closed" : "tripped",
         health,
+        healthScore,
         alertMsg,
         timestamp,
       });
@@ -160,6 +170,7 @@ export async function pollBlynkCloud(broadcastWs) {
         lng,
         relayState: relayPin === 1 ? "closed" : "tripped",
         health,
+        healthScore,
         alertMsg,
         googleMapUrl,
         online: true,
@@ -206,7 +217,7 @@ export async function setBlynkRelayState(state, token) {
     const value = state === "closed" ? 1 : 0;
     const url = `https://blynk.cloud/external/api/update?token=${encodeURIComponent(
       token
-    )}&v6=${value}&v7=${encodeURIComponent(state === "closed" ? "normal" : "critical")}`;
+    )}&v6=${value}&v7=${encodeURIComponent(state === "closed" ? "70%" : "30%")}`;
 
     await httpGet(url);
     console.log(`[Blynk Cloud API] Updated Hardware Relay V6 = ${value} (${state})`);

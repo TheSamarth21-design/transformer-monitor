@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Brain, Activity, Clock, ShieldAlert, CheckCircle, AlertTriangle, ArrowUpRight } from "lucide-react";
+import { Brain, ShieldAlert } from "lucide-react";
 import { apiRequest, subscribeWebSocket } from "@/lib/api";
 
 export interface MlAnalysisData {
@@ -7,7 +7,6 @@ export interface MlAnalysisData {
   riskLevel: "LOW" | "MODERATE" | "HIGH" | "CRITICAL";
   failureMode: string;
   recommendedAction: string;
-  estimatedRul: string;
   metrics: {
     loadRatioPercent: number;
     tempSlopePerMin: number;
@@ -20,13 +19,12 @@ export function PredictiveAnalyticsCard() {
   const [mlData, setMlData] = useState<MlAnalysisData>({
     healthScore: 70,
     riskLevel: "MODERATE",
-    failureMode: "Moderate Load Status",
-    recommendedAction: "Operating within 70% nominal health index. Continue standard monitoring.",
-    estimatedRul: "8,500 Hours",
+    failureMode: "Synchronized Blynk Hardware Status",
+    recommendedAction: "Operating at 70% health index synchronized with Blynk Cloud API.",
     metrics: {
-      loadRatioPercent: 53,
-      tempSlopePerMin: 0.1,
-      voltageVariance: 0.4,
+      loadRatioPercent: 0,
+      tempSlopePerMin: 0,
+      voltageVariance: 0,
     },
     timestamp: new Date().toISOString(),
   });
@@ -74,10 +72,10 @@ export function PredictiveAnalyticsCard() {
           </div>
           <div>
             <h2 className="text-headline-sm font-bold text-on-surface">
-              ML Predictive Fault Analysis
+              Blynk Hardware Health & Analytics
             </h2>
             <p className="text-body-sm text-on-surface-variant">
-              Failure mode prediction & health forecasting
+              Live hardware health index & failure mode prediction
             </p>
           </div>
         </div>
@@ -94,7 +92,7 @@ export function PredictiveAnalyticsCard() {
       <div className="grid grid-cols-1 md:grid-cols-3 gap-md items-center bg-surface-container/40 p-md rounded-xl border border-outline-variant/40">
         <div>
           <span className="text-label-sm uppercase text-on-surface-variant">
-            Health Index Score
+            Blynk Health Index Score
           </span>
           <div className="flex items-baseline gap-1 mt-1">
             <span className={`text-display-sm font-bold font-mono ${healthScoreColor.split(" ")[0]}`}>
@@ -118,39 +116,19 @@ export function PredictiveAnalyticsCard() {
         </div>
       </div>
 
-      {/* RUL & Action Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-md">
-        
-        {/* Remaining Useful Life */}
-        <div className="rounded-xl border border-outline-variant/60 bg-surface-container-lowest p-sm flex items-start gap-3">
-          <div className="p-2 rounded-lg bg-primary-container/20 text-primary mt-0.5">
-            <Clock size={18} />
-          </div>
-          <div>
-            <span className="text-label-sm uppercase text-on-surface-variant">
-              Estimated Time Before Fault (RUL)
-            </span>
-            <p className="text-body-md font-bold font-mono text-on-surface mt-0.5">
-              {mlData.estimatedRul}
-            </p>
-          </div>
+      {/* Action Recommendation Card (RUL removed as requested) */}
+      <div className="rounded-xl border border-outline-variant/60 bg-surface-container-lowest p-sm flex items-start gap-3">
+        <div className="p-2 rounded-lg bg-warning/15 text-warning mt-0.5 shrink-0">
+          <ShieldAlert size={18} />
         </div>
-
-        {/* Action Recommendation */}
-        <div className="rounded-xl border border-outline-variant/60 bg-surface-container-lowest p-sm flex items-start gap-3">
-          <div className="p-2 rounded-lg bg-warning/15 text-warning mt-0.5">
-            <ShieldAlert size={18} />
-          </div>
-          <div>
-            <span className="text-label-sm uppercase text-on-surface-variant">
-              Recommended Action
-            </span>
-            <p className="text-body-sm font-medium text-on-surface mt-0.5">
-              {mlData.recommendedAction}
-            </p>
-          </div>
+        <div>
+          <span className="text-label-sm uppercase text-on-surface-variant">
+            Recommended Action
+          </span>
+          <p className="text-body-sm font-medium text-on-surface mt-0.5">
+            {mlData.recommendedAction}
+          </p>
         </div>
-
       </div>
 
       {/* Feature Trends Grid */}
