@@ -6,3 +6,5 @@ dist
 server/data/*.db
 *.zip
 *.tsbuildinfo
+.idea
+android/.idea
