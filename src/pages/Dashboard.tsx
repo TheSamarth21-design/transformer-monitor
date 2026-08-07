@@ -1,4 +1,4 @@
-import { Zap, Thermometer, Gauge, Droplets, Power, Wifi, MapPin, ExternalLink, Activity, AlertCircle } from "lucide-react";
+import { Zap, Thermometer, Gauge, Droplets, Power, Wifi, MapPin, ExternalLink, Activity, AlertCircle, Cpu } from "lucide-react";
 import { MetricTile } from "@/components/MetricTile";
 import { StatusBadge } from "@/components/StatusBadge";
 import { useAlerts, useDevice, useLiveReading, useRelayStatus } from "@/hooks/useSensorData";
@@ -15,8 +15,8 @@ export default function Dashboard() {
 
   const mapUrl = reading.googleMapUrl || device.googleMapsLink || `https://maps.google.com/?q=${reading.lat || device.lat},${reading.lng || device.lng}`;
   
-  // DEVICE is ONLINE ONLY when Blynk hardware is actively sending Voltage (> 0V) or Current (> 0A)
   const isOnline = Boolean(reading.voltage > 0 || reading.current > 0);
+  const isReplicated = Boolean(reading.isReplicatedData);
 
   return (
     <div className="flex flex-col gap-lg">
@@ -33,14 +33,22 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* Blynk Live Hardware Status & Alert Message Banner */}
-      <div className="rounded-xl border border-primary/40 bg-surface-container-lowest p-md flex flex-col md:flex-row items-start md:items-center justify-between gap-md shadow-sm">
+      {/* Blynk Live Hardware Status & AI Data Replicator Banner */}
+      <div className={`rounded-xl border p-md flex flex-col md:flex-row items-start md:items-center justify-between gap-md shadow-sm transition-colors ${
+        isReplicated ? "border-warning/60 bg-warning/5" : "border-primary/40 bg-surface-container-lowest"
+      }`}>
         <div className="flex flex-col gap-1">
-          <div className="flex items-center gap-2">
-            <Activity size={18} className="text-primary" />
-            <span className="text-body-sm font-bold text-on-surface">ESP32 Hardware Status:</span>
-            <span className="text-body-sm font-mono font-bold px-2 py-0.5 rounded bg-primary-container/20 text-primary">
-              {isOnline ? (reading.health || "Hardware Online") : "Hardware Offline (0V / 0A)"}
+          <div className="flex items-center gap-2 flex-wrap">
+            {isReplicated ? (
+              <Cpu size={18} className="text-warning animate-pulse" />
+            ) : (
+              <Activity size={18} className="text-primary" />
+            )}
+            <span className="text-body-sm font-bold text-on-surface">Data Telemetry Stream:</span>
+            <span className={`text-body-sm font-mono font-bold px-2 py-0.5 rounded ${
+              isReplicated ? "bg-warning/20 text-warning border border-warning/40" : "bg-primary-container/20 text-primary"
+            }`}>
+              {isReplicated ? "AI Predictive Replicator (ESP Fault Failover)" : "ESP32 Live Hardware Stream"}
             </span>
           </div>
           {reading.alertMsg && (
@@ -55,14 +63,14 @@ export default function Dashboard() {
           <div className="flex items-center gap-1.5 text-body-sm text-on-surface-variant font-mono">
             <MapPin size={15} className="text-error" />
             <span>
-              {reading.lat ? `${reading.lat.toFixed(4)}, ${reading.lng?.toFixed(4)}` : "Sector 4B, Pimpri"}
+              {reading.lat ? `${reading.lat.toFixed(4)}, ${reading.lng?.toFixed(4)}` : "18.6499, 73.7452"}
             </span>
           </div>
           <a
             href={mapUrl}
             target="_blank"
             rel="noopener noreferrer"
-            className="px-3 py-1.5 rounded-lg bg-primary text-on-primary font-bold text-xs flex items-center gap-1.5 hover:opacity-90 transition-opacity"
+            className="px-3 py-1.5 rounded-lg bg-primary text-on-primary font-bold text-xs flex items-center gap-1.5 hover:opacity-90 transition-opacity cursor-pointer"
           >
             <ExternalLink size={13} />
             <span>Google Maps</span>
@@ -91,7 +99,7 @@ export default function Dashboard() {
           icon={Power}
           status={reading.relayState === "closed" || relay.state === "closed" ? "normal" : "critical"}
         />
-        <MetricTile label={t("dashboard.device")} value={isOnline ? t("dashboard.online") : t("dashboard.offline")} icon={Wifi} status={isOnline ? "normal" : undefined} />
+        <MetricTile label={t("dashboard.device")} value={isOnline ? (isReplicated ? "AI Sync" : t("dashboard.online")) : t("dashboard.offline")} icon={Wifi} status={isOnline ? "normal" : undefined} />
       </div>
 
       {/* Recent Alerts Table */}

@@ -12,6 +12,7 @@ export interface LiveReading {
   alertMsg?: string; // (V8) e.g. "TRIPPED: Manual Remote Shutdown"
   googleMapUrl?: string; // (V9)
   timestamp: string;
+  isReplicatedData?: boolean; // True when AI predictive replicator fills in for hardware damage
 }
 
 export interface TransformerDevice {
