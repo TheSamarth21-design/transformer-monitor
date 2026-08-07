@@ -10,6 +10,8 @@ export default function Location() {
   const DEFAULT_LAT = 18.649916;
   const DEFAULT_LNG = 73.745276;
 
+  // Use real live sensor GPS if available, otherwise fall back to 18.649916, 73.745276
+  const isLiveGpsFix = Boolean(reading.lat && reading.lat !== 0 && reading.lat !== DEFAULT_LAT);
   const lat = reading.lat && reading.lat !== 0 ? reading.lat : device.lat || DEFAULT_LAT;
   const lng = reading.lng && reading.lng !== 0 ? reading.lng : device.lng || DEFAULT_LNG;
 
@@ -22,7 +24,9 @@ export default function Location() {
         <div>
           <h1 className="text-headline-lg text-on-surface">Substation Location</h1>
           <p className="text-body-sm text-on-surface-variant mt-1">
-            Live hardware GPS tracking (18.649916, 73.745276)
+            {isLiveGpsFix
+              ? "Live Hardware GPS Telemetry Stream (Blynk V4 & V5)"
+              : "Default Substation Coordinates (18.649916, 73.745276)"}
           </p>
         </div>
         <button
@@ -64,11 +68,11 @@ export default function Location() {
 
           <div className="flex flex-col gap-1">
             <p className="text-label-sm uppercase text-on-surface-variant font-semibold flex items-center gap-1.5">
-              <MapPin size={15} className="text-error" />
-              <span>Transformer Position</span>
+              <MapPin size={15} className={isLiveGpsFix ? "text-success" : "text-primary"} />
+              <span>GPS Telemetry Source</span>
             </p>
             <p className="text-body-md font-bold text-on-surface">
-              Sector 4B, Pimpri Substation Grid
+              {isLiveGpsFix ? "Live ESP32 GPS Sensor Stream (V4/V5)" : "Default Grid Base Location"}
             </p>
           </div>
 
