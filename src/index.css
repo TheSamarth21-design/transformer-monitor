@@ -1,0 +1,113 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --surface: #f8f9fa;
+  --surface-dim: #d9dadb;
+  --surface-bright: #f8f9fa;
+  --surface-container-lowest: #ffffff;
+  --surface-container-low: #f3f4f5;
+  --surface-container: #edeeef;
+  --surface-container-high: #e7e8e9;
+  --surface-container-highest: #e1e3e4;
+
+  --on-surface: #191c1d;
+  --on-surface-variant: #424752;
+
+  --outline: #727783;
+  --outline-variant: #c2c6d4;
+
+  --primary: #00478d;
+  --on-primary: #ffffff;
+  --primary-container: #005eb8;
+  --on-primary-container: #c8daff;
+
+  --secondary: #5b5f63;
+  --on-secondary: #ffffff;
+  --secondary-container: #dde0e5;
+  --on-secondary-container: #5f6367;
+
+  --success: #146c2e;
+  --on-success: #ffffff;
+  --success-container: #b8f0bd;
+  --on-success-container: #062109;
+
+  --warning: #7a4100;
+  --on-warning: #ffffff;
+  --warning-container: #ffddb3;
+  --on-warning-container: #271900;
+
+  --error: #ba1a1a;
+  --on-error: #ffffff;
+  --error-container: #ffdad6;
+  --on-error-container: #93000a;
+
+  --background: #f8f9fa;
+  --on-background: #191c1d;
+}
+
+.dark {
+  --surface: #121416;
+  --surface-dim: #121416;
+  --surface-bright: #37393b;
+  --surface-container-lowest: #0c0e10;
+  --surface-container-low: #1a1c1e;
+  --surface-container: #1e2022;
+  --surface-container-high: #282a2c;
+  --surface-container-highest: #333537;
+
+  --on-surface: #e2e2e5;
+  --on-surface-variant: #c2c6d6;
+
+  --outline: #8c909f;
+  --outline-variant: #424754;
+
+  --primary: #adc6ff;
+  --on-primary: #002e6a;
+  --primary-container: #4d8eff;
+  --on-primary-container: #00285d;
+
+  --secondary: #b9c8de;
+  --on-secondary: #233143;
+  --secondary-container: #39485a;
+  --on-secondary-container: #a7b6cc;
+
+  --success: #8bd996;
+  --on-success: #003910;
+  --success-container: #00531a;
+  --on-success-container: #a5f5aa;
+
+  --warning: #ffb786;
+  --on-warning: #502400;
+  --warning-container: #6d3600;
+  --on-warning-container: #ffdcc6;
+
+  --error: #ffb4ab;
+  --on-error: #690005;
+  --error-container: #93000a;
+  --on-error-container: #ffdad6;
+
+  --background: #121416;
+  --on-background: #e2e2e5;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  background-color: var(--background);
+  color: var(--on-background);
+}
+
+* {
+  border-color: var(--outline-variant);
+}
+
+/* Data tables: tabular numerals for aligned sensor readings */
+.font-mono {
+  font-variant-numeric: tabular-nums;
+}
