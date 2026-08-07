@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Bell, Moon, Sun, ChevronDown, Globe, ShieldAlert, AlertTriangle, Info, Zap, User, LogOut } from "lucide-react";
+import { Bell, Moon, Sun, ChevronDown, Globe, ShieldAlert, AlertTriangle, Info, Zap, User, LogOut, Menu } from "lucide-react";
 import { useTheme } from "@/hooks/useTheme";
 import { useAlerts, useDevice } from "@/hooks/useSensorData";
 import { useLanguage } from "@/context/LanguageContext";
@@ -10,7 +10,7 @@ import { useAuth } from "@/context/AuthContext";
 import { playEmergencyAlarmSound, triggerHapticVibration } from "@/lib/notifications";
 import { FailoverBadge } from "@/components/FailoverBadge";
 
-export function Topbar() {
+export function Topbar({ onOpenMobileDrawer }: { onOpenMobileDrawer?: () => void }) {
   const { theme, toggleTheme } = useTheme();
   const device = useDevice();
   const alertsData = useAlerts();
@@ -114,10 +114,20 @@ export function Topbar() {
   };
 
   return (
-    <header className="h-14 shrink-0 border-b border-outline-variant bg-surface-container-lowest flex items-center justify-between px-md relative z-40">
+    <header className="h-14 shrink-0 border-b border-outline-variant bg-surface-container-lowest flex items-center justify-between px-sm sm:px-md relative z-40">
       
-      {/* Interactive Transformer Selector Dropdown & Replication Badge */}
-      <div className="flex items-center gap-3">
+      {/* Mobile Drawer Toggle & Transformer Selector */}
+      <div className="flex items-center gap-2">
+        {onOpenMobileDrawer && (
+          <button
+            onClick={onOpenMobileDrawer}
+            aria-label="Open Navigation Menu"
+            className="md:hidden h-9 w-9 flex items-center justify-center rounded-lg hover:bg-surface-container text-on-surface cursor-pointer"
+          >
+            <Menu size={22} />
+          </button>
+        )}
+
         <div className="relative" ref={deviceDropdownRef}>
           <button
             onClick={() => {
@@ -125,13 +135,13 @@ export function Topbar() {
               setNotificationDropdownOpen(false);
               setUserDropdownOpen(false);
             }}
-            className="flex items-center gap-2 rounded-lg border border-outline-variant px-sm h-9 text-body-sm text-on-surface hover:bg-surface-container transition-colors cursor-pointer"
+            className="flex items-center gap-1.5 rounded-lg border border-outline-variant px-2 h-9 text-xs sm:text-body-sm text-on-surface hover:bg-surface-container transition-colors cursor-pointer"
           >
-            <Zap size={15} className="text-primary" />
+            <Zap size={14} className="text-primary" />
             <span className="font-mono font-bold text-primary">{selectedDevice.id}</span>
             <span className="text-on-surface font-medium hidden sm:inline">{selectedDevice.name}</span>
             <ChevronDown
-              size={14}
+              size={13}
               className={`text-on-surface-variant transition-transform duration-200 ${
                 deviceDropdownOpen ? "rotate-180" : ""
               }`}
@@ -139,7 +149,7 @@ export function Topbar() {
           </button>
 
           {deviceDropdownOpen && (
-            <div className="absolute top-11 left-0 w-72 bg-surface-container-lowest border border-outline-variant rounded-xl shadow-xl p-2 flex flex-col gap-1 z-50 animate-in fade-in duration-150">
+            <div className="absolute top-11 left-0 w-64 sm:w-72 bg-surface-container-lowest border border-outline-variant rounded-xl shadow-xl p-2 flex flex-col gap-1 z-50 animate-in fade-in duration-150">
               <span className="text-label-sm font-semibold uppercase text-on-surface-variant px-2 py-1">
                 Select Active Transformer
               </span>
@@ -175,12 +185,12 @@ export function Topbar() {
         </div>
       </div>
 
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-1.5 sm:gap-2">
         {/* Test Alert Button */}
         <button
           onClick={handleTestAlert}
           title="Test 2A Overload Emergency Pop-Up Alert"
-          className="h-8 px-3 rounded-full bg-error/15 border border-error/30 text-error flex items-center gap-1.5 text-xs font-bold hover:bg-error/25 transition-colors cursor-pointer"
+          className="h-8 px-2.5 rounded-full bg-error/15 border border-error/30 text-error flex items-center gap-1 text-[11px] sm:text-xs font-bold hover:bg-error/25 transition-colors cursor-pointer"
         >
           <ShieldAlert size={14} />
           <span className="hidden sm:inline">Test Emergency Pop-Up</span>
@@ -193,7 +203,7 @@ export function Topbar() {
           aria-label="Toggle dark mode"
           className="h-8 w-8 flex items-center justify-center rounded-lg hover:bg-surface-container text-on-surface-variant transition-colors cursor-pointer"
         >
-          {theme === "dark" ? <Sun size={16} /> : <Moon size={16} />}
+          {theme === "dark" ? <Sun size={15} /> : <Moon size={15} />}
         </button>
 
         {/* Interactive Notification Bell Dropdown */}
@@ -207,17 +217,17 @@ export function Topbar() {
             aria-label="Notifications"
             className="relative h-8 w-8 flex items-center justify-center rounded-lg hover:bg-surface-container text-on-surface-variant transition-colors cursor-pointer"
           >
-            <Bell size={16} />
+            <Bell size={15} />
             {alerts.length > 0 && (
               <span className="absolute top-1 right-1 h-2 w-2 rounded-full bg-error animate-pulse" />
             )}
           </button>
 
           {notificationDropdownOpen && (
-            <div className="absolute top-11 right-0 w-80 sm:w-96 bg-surface-container-lowest border border-outline-variant rounded-xl shadow-xl p-3 flex flex-col gap-2 z-50 animate-in fade-in duration-150">
+            <div className="absolute top-11 right-0 w-72 sm:w-96 bg-surface-container-lowest border border-outline-variant rounded-xl shadow-xl p-3 flex flex-col gap-2 z-50 animate-in fade-in duration-150">
               <div className="flex items-center justify-between border-b border-outline-variant/60 pb-2">
                 <div className="flex items-center gap-2">
-                  <Bell size={16} className="text-primary" />
+                  <Bell size={15} className="text-primary" />
                   <span className="text-body-sm font-bold text-on-surface">Notifications</span>
                   <span className="bg-error/20 text-error font-mono font-bold text-xs px-2 py-0.5 rounded-full">
                     {alerts.length} New
@@ -283,7 +293,7 @@ export function Topbar() {
           title="Switch Language (English / हिंदी / मराठी)"
           className="h-8 min-w-8 px-2 rounded-full bg-primary-container text-on-primary-container flex items-center justify-center text-label-md font-bold hover:opacity-80 transition-opacity gap-1 cursor-pointer"
         >
-          <Globe size={14} />
+          <Globe size={13} />
           <span>{langLabels[language]}</span>
         </button>
 
@@ -295,19 +305,19 @@ export function Topbar() {
               setDeviceDropdownOpen(false);
               setNotificationDropdownOpen(false);
             }}
-            className="h-8 px-2.5 rounded-lg bg-surface-container border border-outline-variant flex items-center gap-2 hover:bg-surface-container-high transition-colors cursor-pointer"
+            className="h-8 px-2 rounded-lg bg-surface-container border border-outline-variant flex items-center gap-1.5 hover:bg-surface-container-high transition-colors cursor-pointer"
           >
-            <div className="h-6 w-6 rounded-full bg-primary/20 text-primary flex items-center justify-center font-bold text-xs">
-              {user?.name ? user.name.charAt(0).toUpperCase() : <User size={14} />}
+            <div className="h-5 w-5 rounded-full bg-primary/20 text-primary flex items-center justify-center font-bold text-[11px]">
+              {user?.name ? user.name.charAt(0).toUpperCase() : <User size={13} />}
             </div>
             <span className="text-xs font-bold text-on-surface hidden md:inline">{user?.name || "Engineer"}</span>
-            <ChevronDown size={14} className="text-on-surface-variant" />
+            <ChevronDown size={13} className="text-on-surface-variant" />
           </button>
 
           {userDropdownOpen && (
-            <div className="absolute top-11 right-0 w-64 bg-surface-container-lowest border border-outline-variant rounded-xl shadow-xl p-3 flex flex-col gap-2 z-50 animate-in fade-in duration-150">
+            <div className="absolute top-11 right-0 w-60 bg-surface-container-lowest border border-outline-variant rounded-xl shadow-xl p-3 flex flex-col gap-2 z-50 animate-in fade-in duration-150">
               <div className="flex items-center gap-2.5 pb-2 border-b border-outline-variant/60">
-                <div className="h-9 w-9 rounded-full bg-primary/20 text-primary flex items-center justify-center font-bold text-sm">
+                <div className="h-8 w-8 rounded-full bg-primary/20 text-primary flex items-center justify-center font-bold text-xs">
                   {user?.name ? user.name.charAt(0).toUpperCase() : "E"}
                 </div>
                 <div className="flex flex-col">
@@ -322,7 +332,7 @@ export function Topbar() {
                 className="w-full py-2 px-3 rounded-lg bg-error/10 hover:bg-error/20 text-error font-bold text-xs flex items-center justify-between transition-colors cursor-pointer mt-1"
               >
                 <span>Sign Out Account</span>
-                <LogOut size={15} />
+                <LogOut size={14} />
               </button>
             </div>
           )}

@@ -1,0 +1,9 @@
+{
+  "appId": "com.transformermonitor.app",
+  "appName": "Transformer Monitor",
+  "webDir": "dist",
+  "server": {
+    "url": "https://transformer-monitor.vercel.app",
+    "cleartext": true
+  }
+}
