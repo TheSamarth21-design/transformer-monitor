@@ -4,13 +4,14 @@ import { useLanguage } from "@/context/LanguageContext";
 import type { Language } from "@/lib/translations";
 import { cn } from "@/lib/utils";
 import { apiRequest } from "@/lib/api";
-import { Cpu, Key, CheckCircle, Save } from "lucide-react";
+import { Cpu, Key, CheckCircle, Save, Eye, EyeOff } from "lucide-react";
 
 export default function Settings() {
   const { theme, setTheme } = useTheme();
   const { language, setLanguage, t } = useLanguage();
 
   const [blynkToken, setBlynkToken] = useState("");
+  const [showToken, setShowToken] = useState(false);
   const [savedSuccess, setSavedSuccess] = useState(false);
   const [saving, setSaving] = useState(false);
 
@@ -57,17 +58,33 @@ export default function Settings() {
 
         <form onSubmit={handleSaveBlynkToken} className="flex flex-col gap-md mt-sm">
           <div>
-            <label className="text-body-sm font-medium text-on-surface flex items-center gap-1.5 mb-1">
-              <Key size={14} className="text-primary" />
-              <span>Blynk Device Auth Token / API Key</span>
+            <label className="text-body-sm font-medium text-on-surface flex items-center justify-between mb-1">
+              <span className="flex items-center gap-1.5">
+                <Key size={14} className="text-primary" />
+                <span>Blynk Device Auth Token / API Key</span>
+              </span>
+              <span className="text-xs text-on-surface-variant font-mono">
+                {showToken ? "Visible" : "Masked (Hidden)"}
+              </span>
             </label>
-            <input
-              type="text"
-              value={blynkToken}
-              onChange={(e) => setBlynkToken(e.target.value)}
-              placeholder="e.g. uR3iUqcSJMTS7-OEfnsuSDj-5Sqrxl0L..."
-              className="w-full h-10 rounded border border-outline-variant bg-surface-container-lowest px-sm font-mono text-body-md text-on-surface focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
-            />
+
+            <div className="relative flex items-center">
+              <input
+                type={showToken ? "text" : "password"}
+                value={blynkToken}
+                onChange={(e) => setBlynkToken(e.target.value)}
+                placeholder="Enter Blynk Device Auth Token..."
+                className="w-full h-10 rounded border border-outline-variant bg-surface-container-lowest px-sm pr-10 font-mono text-body-md text-on-surface focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+              />
+              <button
+                type="button"
+                onClick={() => setShowToken(!showToken)}
+                title={showToken ? "Hide Auth Token" : "Show Auth Token"}
+                className="absolute right-2 text-on-surface-variant hover:text-on-surface p-1 rounded hover:bg-surface-container transition-colors cursor-pointer"
+              >
+                {showToken ? <EyeOff size={18} /> : <Eye size={18} />}
+              </button>
+            </div>
           </div>
 
           <div className="flex items-center gap-3">
