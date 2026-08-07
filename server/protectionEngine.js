@@ -8,7 +8,7 @@ export async function processTelemetryProtection(telemetry, broadcastWs, blynkTo
     if (!relay) return;
 
     const { voltage, current, temperature, humidity } = telemetry;
-    const maxCurrentLimit = relay.max_current || 1.5; // 1.5A safety threshold limit
+    const maxCurrentLimit = relay.max_current || 50.0; // 50A safety threshold limit
     let tripReason = null;
 
     if (current > maxCurrentLimit) {

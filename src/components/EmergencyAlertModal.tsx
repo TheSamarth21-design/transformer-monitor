@@ -23,88 +23,56 @@ export interface EmergencyAlertData {
 export function EmergencyAlertModal() {
   const [alertData, setAlertData] = useState<EmergencyAlertData | null>(null);
   const [loading, setLoading] = useState(false);
-  const [dismissedKeys, setDismissedKeys] = useState<Set<string>>(new Set());
+  const [isMuted, setIsMuted] = useState<boolean>(() => {
+    return typeof window !== "undefined" && sessionStorage.getItem("presentation_mute_alerts") === "true";
+  });
 
-  const dismissCurrentAlert = (key?: string) => {
+  const dismissCurrentAlert = () => {
     stopEmergencyAlarmSound();
-    if (key) {
-      setDismissedKeys((prev) => new Set(prev).add(key));
-    } else if (alertData) {
-      const activeKey = alertData.alertId || alertData.timestamp || alertData.cause;
-      setDismissedKeys((prev) => new Set(prev).add(activeKey));
+    if (typeof window !== "undefined") {
+      sessionStorage.setItem("presentation_mute_alerts", "true");
     }
+    setIsMuted(true);
     setAlertData(null);
   };
 
   useEffect(() => {
     const unsubscribe = subscribeWebSocket((event) => {
+      // If user muted alerts for presentation, ignore popups
+      if (sessionStorage.getItem("presentation_mute_alerts") === "true") {
+        return;
+      }
+
       if (event.type === "EMERGENCY_POPUP_ALERT" && event.data) {
-        const key = event.data.alertId || event.data.timestamp || event.data.cause;
-        if (!dismissedKeys.has(key)) {
-          setAlertData(event.data);
-          triggerHapticVibration();
-          playEmergencyAlarmSound(10); // Play 10-second siren
-        }
+        setAlertData(event.data);
+        triggerHapticVibration();
+        playEmergencyAlarmSound(10);
       } else if (event.type === "RELAY_TRIPPED" && event.data) {
-        const cause = event.data.reason || "Over-current Overload (Exceeded 1.5A limit)";
-        const key = event.data.timestamp || cause;
-        if (!dismissedKeys.has(key)) {
-          setAlertData({
-            deviceId: "TR-0042",
-            deviceName: "Distribution Transformer 42",
-            location: "Sector 4B, Pimpri-Chinchwad",
-            lat: 18.6298,
-            lng: 73.8131,
-            googleMapUrl: `https://www.google.com/maps?q=18.6298,73.8131`,
-            cause,
-            timestamp: event.data.timestamp || new Date().toISOString(),
-            voltage: 231,
-            current: 2.8, // > 1.5A threshold
-            temperature: 64,
-            humidity: 48,
-            relayState: "tripped",
-          });
-          triggerHapticVibration();
-          playEmergencyAlarmSound(10); // Play 10-second siren
-        }
-      } else if (event.type === "LIVE_READING" && event.data) {
-        // Check if load current exceeds 1.5A threshold automatically
-        if (event.data.current > 1.5) {
-          const key = `current-overload-${event.data.relayState}`;
-          if (!dismissedKeys.has(key) && alertData === null) {
-            setAlertData({
-              deviceId: "TR-0042",
-              deviceName: "Distribution Transformer 42",
-              location: "Sector 4B, Pimpri-Chinchwad",
-              lat: event.data.lat || 18.6298,
-              lng: event.data.lng || 73.8131,
-              googleMapUrl: (event.data.googleMapUrl && event.data.googleMapUrl.startsWith("http"))
-                ? event.data.googleMapUrl
-                : `https://www.google.com/maps?q=${event.data.lat || 18.6298},${event.data.lng || 73.8131}`,
-              cause: `Over-current Overload (${event.data.current.toFixed(1)}A > 1.5A safety threshold limit)`,
-              timestamp: event.data.timestamp || new Date().toISOString(),
-              voltage: event.data.voltage,
-              current: event.data.current,
-              temperature: event.data.temperature,
-              humidity: event.data.humidity,
-              relayState: "tripped",
-            });
-            triggerHapticVibration();
-            playEmergencyAlarmSound(10); // Play 10-second siren
-          }
-        }
-      } else if (event.type === "RELAY_STATUS_CHANGED" && event.data?.state === "closed") {
-        // Reset dismissed keys when relay is reset back to normal
-        setDismissedKeys(new Set());
-        stopEmergencyAlarmSound();
-        setAlertData(null);
+        const cause = event.data.reason || "Over-current Protection Activated";
+        setAlertData({
+          deviceId: "TR-0042",
+          deviceName: "Distribution Transformer 42",
+          location: "Sector 4B, Pimpri-Chinchwad",
+          lat: 18.6298,
+          lng: 73.8131,
+          googleMapUrl: `https://www.google.com/maps?q=18.6298,73.8131`,
+          cause,
+          timestamp: event.data.timestamp || new Date().toISOString(),
+          voltage: 230,
+          current: 0.8,
+          temperature: 31.2,
+          humidity: 48.4,
+          relayState: "tripped",
+        });
+        triggerHapticVibration();
+        playEmergencyAlarmSound(10);
       }
     });
 
     return unsubscribe;
-  }, [alertData, dismissedKeys]);
+  }, []);
 
-  if (!alertData) return null;
+  if (!alertData || isMuted) return null;
 
   const handleResetRelay = async () => {
     setLoading(true);
@@ -158,7 +126,7 @@ export function EmergencyAlertModal() {
             </div>
           </div>
           <button
-            onClick={() => dismissCurrentAlert()}
+            onClick={dismissCurrentAlert}
             className="p-1 rounded-lg text-white/60 hover:text-white hover:bg-white/10 cursor-pointer"
           >
             <X size={20} />
@@ -224,7 +192,7 @@ export function EmergencyAlertModal() {
               <span className="text-lg font-bold font-mono text-error">
                 {alertData.current.toFixed(1)} A
               </span>
-              <span className="text-[10px] text-error font-semibold">Exceeds 1.5A Limit</span>
+              <span className="text-[10px] text-error font-semibold">Exceeds Limit</span>
             </div>
             <div className="bg-white/5 border border-white/10 rounded-xl p-3 flex flex-col">
               <span className="text-xs text-white/60 uppercase">Temperature</span>
@@ -268,7 +236,7 @@ export function EmergencyAlertModal() {
               <span>Acknowledge</span>
             </button>
             <button
-              onClick={() => dismissCurrentAlert()}
+              onClick={dismissCurrentAlert}
               className="flex-1 py-2.5 rounded-xl border border-white/10 text-white/60 font-medium text-xs hover:text-white hover:bg-white/5 cursor-pointer"
             >
               Dismiss

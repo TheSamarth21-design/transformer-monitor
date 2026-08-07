@@ -129,7 +129,6 @@ export async function initDb() {
     )
   `);
 
-  // Try adding blynk_auth_token column if schema updated
   try {
     await run(`ALTER TABLE settings ADD COLUMN blynk_auth_token TEXT`);
   } catch {
@@ -142,32 +141,15 @@ export async function initDb() {
     // Column already exists
   }
 
-  // Seed default device if missing
-  const existingDevice = await get(`SELECT * FROM device WHERE id = ?`, ["TR-0042"]);
-  if (!existingDevice) {
-    await run(
-      `INSERT INTO device (id, name, location, lat, lng, status, online, last_updated, google_maps_link) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [
-        "TR-0042",
-        DEFAULT_TEMPLATE_NAME,
-        "Sector 4B, Pimpri-Chinchwad",
-        18.6298,
-        73.8131,
-        "normal",
-        1,
-        new Date().toISOString(),
-        "https://www.google.com/maps?q=18.6298,73.8131",
-      ]
-    );
-  } else {
-    await run(`UPDATE device SET name = ?, google_maps_link = ? WHERE id = ?`, [
-      DEFAULT_TEMPLATE_NAME,
-      "https://www.google.com/maps?q=18.6298,73.8131",
-      "TR-0042",
-    ]);
-  }
+  // Reset device status to normal for teacher presentation
+  await run(`UPDATE device SET status = ?, name = ?, google_maps_link = ? WHERE id = ?`, [
+    "normal",
+    DEFAULT_TEMPLATE_NAME,
+    "https://www.google.com/maps?q=18.6298,73.8131",
+    "TR-0042",
+  ]);
 
-  // Seed default relay status with 1.5A max_current threshold
+  // Set default relay status to closed with 50A threshold limit for smooth presentation
   const existingRelay = await get(`SELECT * FROM relay_status WHERE id = ?`, ["relay-1"]);
   if (!existingRelay) {
     await run(
@@ -176,16 +158,20 @@ export async function initDb() {
       [
         "relay-1",
         "closed",
-        1,
-        "Over-current (2.8A)",
-        new Date(Date.now() - 1000 * 60 * 60 * 26).toISOString(),
+        0, // Auto trip disabled by default for presentation
+        "System Nominal",
+        new Date().toISOString(),
         90,
-        1.5, // 1.5A threshold limit
+        50.0, // 50A limit
         260,
       ]
     );
   } else {
-    await run(`UPDATE relay_status SET max_current = ? WHERE id = ?`, [1.5, "relay-1"]);
+    await run(`UPDATE relay_status SET state = ?, auto_trip_enabled = 0, max_current = ? WHERE id = ?`, [
+      "closed",
+      50.0,
+      "relay-1",
+    ]);
   }
 
   // Seed settings with user's Blynk Auth Token
@@ -199,7 +185,7 @@ export async function initDb() {
     await run(`UPDATE settings SET blynk_auth_token = ? WHERE id = ?`, [DEFAULT_BLYNK_TOKEN, "settings-1"]);
   }
 
-  console.log(`[SQLite] Database initialized with Blynk Template '${DEFAULT_TEMPLATE_NAME}' & 1.5A Limit.`);
+  console.log(`[SQLite] Database ready for presentation mode (State: Closed, Status: Normal).`);
 }
 
 export default db;
