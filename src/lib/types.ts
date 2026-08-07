@@ -1,10 +1,16 @@
 export type HealthStatus = "normal" | "warning" | "critical";
 
 export interface LiveReading {
-  voltage: number; // V
-  current: number; // A
-  temperature: number; // C
-  humidity: number; // %
+  voltage: number; // V (V3)
+  current: number; // A (V2)
+  temperature: number; // C (V0)
+  humidity: number; // % (V1)
+  lat?: number; // (V4)
+  lng?: number; // (V5)
+  relayState?: "closed" | "tripped"; // (V6)
+  health?: string; // (V7) e.g. "Critical (30%)"
+  alertMsg?: string; // (V8) e.g. "TRIPPED: Manual Remote Shutdown"
+  googleMapUrl?: string; // (V9)
   timestamp: string;
 }
 
@@ -17,6 +23,7 @@ export interface TransformerDevice {
   status: HealthStatus;
   online: boolean;
   lastUpdated: string;
+  googleMapsLink?: string;
 }
 
 export type RelayState = "closed" | "tripped";

@@ -22,10 +22,15 @@ const MOCK_DEVICE: TransformerDevice = {
 
 export function useLiveReading(): LiveReading {
   const [reading, setReading] = useState<LiveReading>({
-    voltage: 231,
-    current: 42,
-    temperature: 58,
+    voltage: 230,
+    current: 1.2,
+    temperature: 48,
     humidity: 46,
+    lat: 18.6298,
+    lng: 73.8131,
+    health: "normal",
+    alertMsg: "System nominal",
+    googleMapUrl: "https://maps.google.com/?q=18.6298,73.8131",
     timestamp: new Date().toISOString(),
   });
 
