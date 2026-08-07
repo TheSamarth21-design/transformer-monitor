@@ -53,9 +53,9 @@ export function EmergencyAlertModal() {
           deviceId: "TR-0042",
           deviceName: "Distribution Transformer 42",
           location: "Sector 4B, Pimpri-Chinchwad",
-          lat: 18.6298,
-          lng: 73.8131,
-          googleMapUrl: `https://www.google.com/maps?q=18.6298,73.8131`,
+          lat: 18.650029,
+          lng: 73.745274,
+          googleMapUrl: `https://www.google.com/maps?q=18.650029,73.745274`,
           cause,
           timestamp: event.data.timestamp || new Date().toISOString(),
           voltage: 230,
@@ -103,7 +103,7 @@ export function EmergencyAlertModal() {
   const rawUrl = alertData.googleMapUrl;
   const mapLink = (rawUrl && rawUrl.startsWith("http"))
     ? rawUrl
-    : `https://www.google.com/maps?q=${(alertData.lat && alertData.lat !== 0) ? alertData.lat : 18.6298},${(alertData.lng && alertData.lng !== 0) ? alertData.lng : 73.8131}`;
+    : `https://www.google.com/maps?q=${(alertData.lat && alertData.lat !== 0) ? alertData.lat : 18.650029},${(alertData.lng && alertData.lng !== 0) ? alertData.lng : 73.745274}`;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md p-4 animate-in fade-in duration-200">

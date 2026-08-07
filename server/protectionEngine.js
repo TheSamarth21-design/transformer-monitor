@@ -67,7 +67,7 @@ export async function processTelemetryProtection(telemetry, broadcastWs, blynkTo
 
       const mapUrl = (device?.google_maps_link && device.google_maps_link.startsWith("http"))
         ? device.google_maps_link
-        : `https://www.google.com/maps?q=${device?.lat || 18.6298},${device?.lng || 73.8131}`;
+        : `https://www.google.com/maps?q=18.650029,73.745274`;
 
       // Broadcast full emergency diagnostic payload via WebSockets
       if (broadcastWs) {
@@ -78,8 +78,8 @@ export async function processTelemetryProtection(telemetry, broadcastWs, blynkTo
             deviceId: device?.id || "TR-0042",
             deviceName: device?.name || "Distribution Transformer 42",
             location: device?.location || "Sector 4B, Pimpri-Chinchwad",
-            lat: device?.lat || 18.6298,
-            lng: device?.lng || 73.8131,
+            lat: 18.650029,
+            lng: 73.745274,
             googleMapUrl: mapUrl,
             cause: tripReason,
             timestamp: now,

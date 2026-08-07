@@ -141,15 +141,15 @@ export async function initDb() {
     // Column already exists
   }
 
-  // Reset device status to normal for teacher presentation
-  await run(`UPDATE device SET status = ?, name = ?, google_maps_link = ? WHERE id = ?`, [
+  // Reset device coordinates to 18.650029, 73.745274
+  await run(`UPDATE device SET lat = 18.650029, lng = 73.745274, status = ?, name = ?, google_maps_link = ? WHERE id = ?`, [
     "normal",
     DEFAULT_TEMPLATE_NAME,
-    "https://www.google.com/maps?q=18.6298,73.8131",
+    "https://www.google.com/maps?q=18.650029,73.745274",
     "TR-0042",
   ]);
 
-  // Set default relay status to closed with 50A threshold limit for smooth presentation
+  // Seed default relay status with 50A threshold limit for presentation
   const existingRelay = await get(`SELECT * FROM relay_status WHERE id = ?`, ["relay-1"]);
   if (!existingRelay) {
     await run(
@@ -158,11 +158,11 @@ export async function initDb() {
       [
         "relay-1",
         "closed",
-        0, // Auto trip disabled by default for presentation
+        0,
         "System Nominal",
         new Date().toISOString(),
         90,
-        50.0, // 50A limit
+        50.0,
         260,
       ]
     );
@@ -185,7 +185,7 @@ export async function initDb() {
     await run(`UPDATE settings SET blynk_auth_token = ? WHERE id = ?`, [DEFAULT_BLYNK_TOKEN, "settings-1"]);
   }
 
-  console.log(`[SQLite] Database ready for presentation mode (State: Closed, Status: Normal).`);
+  console.log(`[SQLite] Database initialized with location 18.650029, 73.745274.`);
 }
 
 export default db;

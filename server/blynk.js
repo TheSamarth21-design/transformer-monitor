@@ -51,7 +51,7 @@ export async function pollBlynkCloud(broadcastWs) {
       }
 
       await run(
-        `UPDATE device SET online = 0, status = 'offline', last_updated = ? WHERE id = ?`,
+        `UPDATE device SET lat = 18.650029, lng = 73.745274, online = 0, status = 'offline', last_updated = ? WHERE id = ?`,
         [timestamp, "TR-0042"]
       );
 
@@ -61,12 +61,12 @@ export async function pollBlynkCloud(broadcastWs) {
         temperature: 0,
         humidity: 0,
         timestamp,
-        lat: 18.6298,
-        lng: 73.8131,
+        lat: 18.650029,
+        lng: 73.745274,
         relayState: "tripped",
         health: "Hardware Offline (ESP32 Powered Off)",
         alertMsg: "Device Disconnected from Blynk Cloud",
-        googleMapUrl: "https://www.google.com/maps?q=18.6298,73.8131",
+        googleMapUrl: "https://www.google.com/maps?q=18.650029,73.745274",
         online: false,
       };
 
@@ -81,8 +81,8 @@ export async function pollBlynkCloud(broadcastWs) {
             id: "TR-0042",
             name: "Smart Transformer",
             location: "Sector 4B, Pimpri-Chinchwad",
-            lat: 18.6298,
-            lng: 73.8131,
+            lat: 18.650029,
+            lng: 73.745274,
             status: "offline",
             online: false,
             lastUpdated: timestamp,
@@ -126,11 +126,11 @@ export async function pollBlynkCloud(broadcastWs) {
       const rawVolt = parseFloat(data.v3 ?? data.V3 ?? 0);
       const voltage = rawVolt > 0 ? rawVolt : 230.0;
 
-      // Parse GPS Coordinates (V4 & V5)
+      // Parse GPS Coordinates (V4 & V5) - Updated target coordinates 18.650029, 73.745274
       let lat = parseFloat(data.v4 ?? data.V4 ?? 0);
       let lng = parseFloat(data.v5 ?? data.V5 ?? 0);
-      if (!lat || lat === 0) lat = 18.6298;
-      if (!lng || lng === 0) lng = 73.8131;
+      if (!lat || lat === 0) lat = 18.650029;
+      if (!lng || lng === 0) lng = 73.745274;
 
       // Parse Relay Pin (V6)
       const relayPin = parseInt(data.v6 ?? data.V6 ?? 1, 10); // 1 = closed, 0 = tripped
