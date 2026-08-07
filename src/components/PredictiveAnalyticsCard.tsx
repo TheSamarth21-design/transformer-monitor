@@ -18,13 +18,13 @@ export interface MlAnalysisData {
 
 export function PredictiveAnalyticsCard() {
   const [mlData, setMlData] = useState<MlAnalysisData>({
-    healthScore: 94,
-    riskLevel: "LOW",
-    failureMode: "Normal Operation",
-    recommendedAction: "Optimal operational parameters. Routine monitoring.",
-    estimatedRul: "> 10,000 Hours",
+    healthScore: 70,
+    riskLevel: "MODERATE",
+    failureMode: "Moderate Load Status",
+    recommendedAction: "Operating within 70% nominal health index. Continue standard monitoring.",
+    estimatedRul: "8,500 Hours",
     metrics: {
-      loadRatioPercent: 42,
+      loadRatioPercent: 53,
       tempSlopePerMin: 0.1,
       voltageVariance: 0.4,
     },
@@ -158,7 +158,7 @@ export function PredictiveAnalyticsCard() {
         <div className="p-xs rounded bg-surface-container/30">
           <span className="text-label-sm text-on-surface-variant block">Load Ratio</span>
           <span className="text-body-md font-mono font-bold text-on-surface">
-            {mlData.metrics.loadRatioPercent}% of 2A
+            {mlData.metrics.loadRatioPercent}% of 1.5A
           </span>
         </div>
         <div className="p-xs rounded bg-surface-container/30">

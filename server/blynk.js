@@ -139,7 +139,7 @@ export async function pollBlynkCloud(broadcastWs) {
       const rawHealth = String(data.v7 ?? data.V7 ?? "");
       const health = rawHealth && rawHealth !== "undefined" && !rawHealth.includes("Critical")
         ? rawHealth
-        : "Optimal (98%)";
+        : "Optimal (70%)";
 
       // Parse Alert Message (V8)
       const rawAlertMsg = String(data.v8 ?? data.V8 ?? "");
