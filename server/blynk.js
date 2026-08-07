@@ -51,7 +51,7 @@ export async function pollBlynkCloud(broadcastWs) {
       }
 
       await run(
-        `UPDATE device SET online = 0, status = 'offline', last_updated = ? WHERE id = ?`,
+        `UPDATE device SET lat = 0, lng = 0, online = 0, status = 'offline', last_updated = ? WHERE id = ?`,
         [timestamp, "TR-0042"]
       );
 
@@ -61,13 +61,13 @@ export async function pollBlynkCloud(broadcastWs) {
         temperature: 0,
         humidity: 0,
         timestamp,
-        lat: 18.650029,
-        lng: 73.745274,
+        lat: 0,
+        lng: 0,
         relayState: "tripped",
         health: "Hardware Offline",
         healthScore: 0,
         alertMsg: "Device Disconnected from Blynk Cloud",
-        googleMapUrl: "https://www.google.com/maps?q=18.650029,73.745274",
+        googleMapUrl: "https://www.google.com/maps",
         online: false,
       };
 
@@ -81,9 +81,9 @@ export async function pollBlynkCloud(broadcastWs) {
           data: {
             id: "TR-0042",
             name: "Smart Transformer",
-            location: "Sector 4B, Pimpri-Chinchwad",
-            lat: 18.650029,
-            lng: 73.745274,
+            location: "Substation Location Unset",
+            lat: 0,
+            lng: 0,
             status: "offline",
             online: false,
             lastUpdated: timestamp,
@@ -111,12 +111,11 @@ export async function pollBlynkCloud(broadcastWs) {
       const temperature = parseFloat(data.v0 ?? data.V0 ?? 0);
       const humidity = parseFloat(data.v1 ?? data.V1 ?? 0);
       const current = parseFloat(data.v2 ?? data.V2 ?? 0);
-      
-      // Direct Voltage Sync from Blynk V3
       const voltage = parseFloat(data.v3 ?? data.V3 ?? 0);
 
-      const lat = parseFloat(data.v4 ?? data.V4 ?? 18.650029) || 18.650029;
-      const lng = parseFloat(data.v5 ?? data.V5 ?? 73.745274) || 73.745274;
+      // Direct Latitude (V4) & Longitude (V5) Sync from Blynk API
+      const lat = parseFloat(data.v4 ?? data.V4 ?? 0);
+      const lng = parseFloat(data.v5 ?? data.V5 ?? 0);
 
       const relayPin = parseInt(data.v6 ?? data.V6 ?? 1, 10); // 1 = closed, 0 = tripped
       
@@ -131,7 +130,9 @@ export async function pollBlynkCloud(broadcastWs) {
       const rawMapUrl = String(data.v9 ?? data.V9 ?? "");
       const googleMapUrl = rawMapUrl.startsWith("http")
         ? rawMapUrl
-        : `https://www.google.com/maps?q=${lat},${lng}`;
+        : lat !== 0 && lng !== 0
+        ? `https://www.google.com/maps?q=${lat},${lng}`
+        : "https://www.google.com/maps";
 
       // Save live hardware telemetry to SQLite database
       await run(
@@ -154,7 +155,7 @@ export async function pollBlynkCloud(broadcastWs) {
         timestamp,
       });
 
-      // Update device record
+      // Update device record with live hardware coordinates
       await run(
         `UPDATE device SET lat = ?, lng = ?, status = ?, google_maps_link = ?, online = 1, last_updated = ? WHERE id = ?`,
         [lat, lng, relayPin === 1 ? "normal" : "critical", googleMapUrl, timestamp, "TR-0042"]
@@ -190,7 +191,7 @@ export async function pollBlynkCloud(broadcastWs) {
           data: {
             id: "TR-0042",
             name: "Smart Transformer",
-            location: "Sector 4B, Pimpri-Chinchwad",
+            location: lat !== 0 && lng !== 0 ? `GPS Position: ${lat}, ${lng}` : "Awaiting Blynk GPS Fix",
             lat,
             lng,
             status: relayPin === 1 ? "normal" : "critical",

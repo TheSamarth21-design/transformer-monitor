@@ -141,11 +141,12 @@ export async function initDb() {
     // Column already exists
   }
 
-  // Reset device coordinates to 18.650029, 73.745274
-  await run(`UPDATE device SET lat = 18.650029, lng = 73.745274, status = ?, name = ?, google_maps_link = ? WHERE id = ?`, [
+  // Reset device coordinates to 0, 0 (awaiting live hardware GPS sync)
+  await run(`UPDATE device SET lat = 0, lng = 0, status = ?, name = ?, location = ?, google_maps_link = ? WHERE id = ?`, [
     "normal",
     DEFAULT_TEMPLATE_NAME,
-    "https://www.google.com/maps?q=18.650029,73.745274",
+    "Awaiting Blynk GPS Sync",
+    "https://www.google.com/maps",
     "TR-0042",
   ]);
 
@@ -185,7 +186,7 @@ export async function initDb() {
     await run(`UPDATE settings SET blynk_auth_token = ? WHERE id = ?`, [DEFAULT_BLYNK_TOKEN, "settings-1"]);
   }
 
-  console.log(`[SQLite] Database initialized with location 18.650029, 73.745274.`);
+  console.log(`[SQLite] Database initialized for live Blynk GPS sync.`);
 }
 
 export default db;

@@ -12,9 +12,9 @@ import { apiRequest, subscribeWebSocket } from "@/lib/api";
 const INITIAL_DEVICE: TransformerDevice = {
   id: "TR-0042",
   name: "Smart Transformer",
-  location: "Sector 4B, Pimpri-Chinchwad",
-  lat: 18.650029,
-  lng: 73.745274,
+  location: "Awaiting Blynk GPS Fix",
+  lat: 0,
+  lng: 0,
   status: "normal",
   online: false,
   lastUpdated: new Date().toISOString(),
@@ -26,11 +26,11 @@ export function useLiveReading(): LiveReading {
     current: 0,
     temperature: 0,
     humidity: 0,
-    lat: 18.650029,
-    lng: 73.745274,
+    lat: 0,
+    lng: 0,
     health: "Connecting...",
     alertMsg: "Waiting for Blynk Cloud sync...",
-    googleMapUrl: "https://www.google.com/maps?q=18.650029,73.745274",
+    googleMapUrl: "https://www.google.com/maps",
     timestamp: new Date().toISOString(),
   });
 

@@ -14,37 +14,40 @@ export interface LocationCoordinates {
 export const GOOGLE_MAPS_API_KEY =
   import.meta.env.VITE_GOOGLE_MAPS_API_KEY || "AIzaSyCsSzjCkSzwbdMKNB6BLXk6iBFeyMabkKw";
 
-// Substation GPS Location Coordinates: 18.650029, 73.745274 (Pimpri-Chinchwad, Pune)
+// Default Substation Location Coordinates (Awaiting Live Blynk Hardware GPS Sync)
 export const DEFAULT_LOCATION: LocationCoordinates = {
-  lat: 18.650029,
-  lng: 73.745274,
+  lat: 0,
+  lng: 0,
 };
 
 /**
  * Generates a direct clickable Google Maps URL for given coordinates.
  */
 export function getGoogleMapsUrl(lat?: number, lng?: number): string {
-  const targetLat = lat && lat !== 0 ? lat : DEFAULT_LOCATION.lat;
-  const targetLng = lng && lng !== 0 ? lng : DEFAULT_LOCATION.lng;
-  return `https://www.google.com/maps?q=${targetLat},${targetLng}`;
+  if (!lat || !lng || (lat === 0 && lng === 0)) {
+    return "https://www.google.com/maps";
+  }
+  return `https://www.google.com/maps?q=${lat},${lng}`;
 }
 
 /**
  * Generates an embedded Google Maps iframe URL using Google Maps Embed API Key.
  */
 export function getGoogleMapsEmbedUrl(lat?: number, lng?: number): string {
-  const targetLat = lat && lat !== 0 ? lat : DEFAULT_LOCATION.lat;
-  const targetLng = lng && lng !== 0 ? lng : DEFAULT_LOCATION.lng;
-  return `https://www.google.com/maps/embed/v1/place?key=${GOOGLE_MAPS_API_KEY}&q=${targetLat},${targetLng}&zoom=15`;
+  if (!lat || !lng || (lat === 0 && lng === 0)) {
+    return `https://www.google.com/maps/embed/v1/place?key=${GOOGLE_MAPS_API_KEY}&q=0,0&zoom=2`;
+  }
+  return `https://www.google.com/maps/embed/v1/place?key=${GOOGLE_MAPS_API_KEY}&q=${lat},${lng}&zoom=15`;
 }
 
 /**
  * Generates a Google Static Maps image URL using API Key.
  */
 export function getGoogleStaticMapUrl(lat?: number, lng?: number, width = 600, height = 300): string {
-  const targetLat = lat && lat !== 0 ? lat : DEFAULT_LOCATION.lat;
-  const targetLng = lng && lng !== 0 ? lng : DEFAULT_LOCATION.lng;
-  return `https://maps.googleapis.com/maps/api/staticmap?center=${targetLat},${targetLng}&zoom=15&size=${width}x${height}&markers=color:red%7C${targetLat},${targetLng}&key=${GOOGLE_MAPS_API_KEY}`;
+  if (!lat || !lng || (lat === 0 && lng === 0)) {
+    return `https://maps.googleapis.com/maps/api/staticmap?center=0,0&zoom=2&size=${width}x${height}&key=${GOOGLE_MAPS_API_KEY}`;
+  }
+  return `https://maps.googleapis.com/maps/api/staticmap?center=${lat},${lng}&zoom=15&size=${width}x${height}&markers=color:red%7C${lat},${lng}&key=${GOOGLE_MAPS_API_KEY}`;
 }
 
 /**
