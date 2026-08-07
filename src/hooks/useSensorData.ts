@@ -20,7 +20,7 @@ const INITIAL_DEVICE: TransformerDevice = {
   lat: 0,
   lng: 0,
   status: "normal",
-  online: false,
+  online: true,
   lastUpdated: new Date().toISOString(),
 };
 

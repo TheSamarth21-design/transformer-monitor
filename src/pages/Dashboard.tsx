@@ -14,6 +14,7 @@ export default function Dashboard() {
   const { t } = useLanguage();
 
   const mapUrl = reading.googleMapUrl || device.googleMapsLink || `https://maps.google.com/?q=${reading.lat || device.lat},${reading.lng || device.lng}`;
+  const isOnline = Boolean(device.online || reading.voltage > 0 || reading.current > 0 || reading.timestamp);
 
   return (
     <div className="flex flex-col gap-lg">
@@ -21,7 +22,7 @@ export default function Dashboard() {
         <div>
           <div className="flex items-center gap-2">
             <h1 className="text-headline-lg text-on-surface">{device.name}</h1>
-            <StatusBadge status={device.status} />
+            <StatusBadge status={reading.current > 2.0 ? "critical" : reading.current > 1.0 ? "warning" : "normal"} />
           </div>
           <p className="text-body-sm text-on-surface-variant mt-1">
             {device.id} &middot; {device.location} &middot; updated{" "}
@@ -73,7 +74,7 @@ export default function Dashboard() {
       {/* Live Telemetry Metrics Grid */}
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-md">
         <MetricTile label={t("dashboard.voltage")} value={reading.voltage.toFixed(1)} unit="V" icon={Zap} status="normal" />
-        <MetricTile label={t("dashboard.current")} value={reading.current.toFixed(1)} unit="A" icon={Gauge} status={reading.current > 1.5 ? "critical" : "normal"} />
+        <MetricTile label={t("dashboard.current")} value={reading.current.toFixed(1)} unit="A" icon={Gauge} status={reading.current > 2.0 ? "critical" : reading.current > 1.0 ? "warning" : "normal"} />
         <MetricTile
           label={t("dashboard.temperature")}
           value={reading.temperature.toFixed(1)}
@@ -84,11 +85,11 @@ export default function Dashboard() {
         <MetricTile label={t("dashboard.humidity")} value={reading.humidity.toFixed(1)} unit="%" icon={Droplets} status="normal" />
         <MetricTile
           label={t("dashboard.relay")}
-          value={relay.state === "closed" ? t("dashboard.closed") : t("dashboard.tripped")}
+          value={reading.relayState === "closed" || relay.state === "closed" ? t("dashboard.closed") : t("dashboard.tripped")}
           icon={Power}
-          status={relay.state === "closed" ? "normal" : "critical"}
+          status={reading.relayState === "closed" || relay.state === "closed" ? "normal" : "critical"}
         />
-        <MetricTile label={t("dashboard.device")} value={device.online ? t("dashboard.online") : t("dashboard.offline")} icon={Wifi} status="normal" />
+        <MetricTile label={t("dashboard.device")} value={isOnline ? t("dashboard.online") : t("dashboard.offline")} icon={Wifi} status={isOnline ? "normal" : "critical"} />
       </div>
 
       {/* Recent Alerts Table */}
