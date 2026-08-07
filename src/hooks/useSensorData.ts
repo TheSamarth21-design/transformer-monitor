@@ -19,7 +19,7 @@ const INITIAL_DEVICE: TransformerDevice = {
   location: "Awaiting Blynk Hardware GPS Sync",
   lat: 0,
   lng: 0,
-  status: "normal",
+  status: "warning",
   online: false,
   lastUpdated: new Date().toISOString(),
 };
@@ -46,7 +46,7 @@ export function useLiveReading(): LiveReading & { isHardwareOnline: boolean } {
       .then((data) => {
         if (data && typeof data.voltage === "number") {
           setReading(data);
-          setIsHardwareOnline(true);
+          setIsHardwareOnline(Boolean(data.voltage > 0 || data.current > 0));
         }
       })
       .catch(() => {});
@@ -55,7 +55,7 @@ export function useLiveReading(): LiveReading & { isHardwareOnline: boolean } {
     const unsubscribeWs = subscribeWebSocket((event) => {
       if (event.type === "LIVE_READING" && event.data) {
         setReading(event.data);
-        setIsHardwareOnline(true);
+        setIsHardwareOnline(Boolean(event.data.voltage > 0 || event.data.current > 0));
       }
     });
 
@@ -75,11 +75,11 @@ export function useLiveReading(): LiveReading & { isHardwareOnline: boolean } {
           googleMapUrl: devData.googleMapUrl ?? prev.googleMapUrl,
           timestamp: devData.lastUpdated ?? new Date().toISOString(),
         }));
-        setIsHardwareOnline(Boolean(devData.online));
+        setIsHardwareOnline(Boolean((devData.voltage || 0) > 0 || (devData.current || 0) > 0));
       }
     });
 
-    // 4. Pure Real Blynk Hardware API Poller (NO DEMO DATA)
+    // 4. Pure Real Blynk Hardware API Poller (ONLINE ONLY WHEN VOLTAGE > 0 OR CURRENT > 0)
     const blynkPoller = setInterval(async () => {
       try {
         const res = await fetch(BLYNK_POLL_URL);
@@ -88,12 +88,6 @@ export function useLiveReading(): LiveReading & { isHardwareOnline: boolean } {
           return;
         }
         const blynkData = await res.json();
-
-        // Check if real hardware pins are present
-        if (blynkData.v3 === undefined && blynkData.v0 === undefined) {
-          setIsHardwareOnline(false);
-          return;
-        }
 
         const temp = parseFloat(blynkData.v0) || 0;
         const hum = parseFloat(blynkData.v1) || 0;
@@ -126,10 +120,15 @@ export function useLiveReading(): LiveReading & { isHardwareOnline: boolean } {
         };
 
         setReading(realReading);
-        setIsHardwareOnline(true);
+        
+        // STRICT RULE: Device is ONLINE ONLY when Voltage > 0 or Current > 0
+        const activeOnline = Boolean(volt > 0 || cur > 0);
+        setIsHardwareOnline(activeOnline);
 
-        // Sync real hardware telemetry snapshot to Cloud Firestore
-        saveTelemetryToFirestore(realReading).catch(() => {});
+        // Sync real hardware telemetry snapshot to Cloud Firestore if active
+        if (activeOnline) {
+          saveTelemetryToFirestore(realReading).catch(() => {});
+        }
       } catch {
         setIsHardwareOnline(false);
       }
@@ -170,7 +169,7 @@ export function useDevice(): TransformerDevice {
           lat: devData.lat ?? prev.lat,
           lng: devData.lng ?? prev.lng,
           status: devData.status || (devData.current > 2.0 ? "critical" : devData.current > 1.0 ? "warning" : "normal"),
-          online: devData.online ?? true,
+          online: Boolean((devData.voltage || 0) > 0 || (devData.current || 0) > 0),
           lastUpdated: devData.lastUpdated || new Date().toISOString(),
           googleMapsLink: devData.googleMapUrl || prev.googleMapsLink,
         }));

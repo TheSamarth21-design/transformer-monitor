@@ -14,7 +14,9 @@ export default function Dashboard() {
   const { t } = useLanguage();
 
   const mapUrl = reading.googleMapUrl || device.googleMapsLink || `https://maps.google.com/?q=${reading.lat || device.lat},${reading.lng || device.lng}`;
-  const isOnline = Boolean(device.online || reading.voltage > 0 || reading.current > 0 || reading.timestamp);
+  
+  // DEVICE is ONLINE ONLY when Blynk hardware is actively sending Voltage (> 0V) or Current (> 0A)
+  const isOnline = Boolean(reading.voltage > 0 || reading.current > 0);
 
   return (
     <div className="flex flex-col gap-lg">
@@ -22,7 +24,7 @@ export default function Dashboard() {
         <div>
           <div className="flex items-center gap-2">
             <h1 className="text-headline-lg text-on-surface">{device.name}</h1>
-            <StatusBadge status={reading.current > 2.0 ? "critical" : reading.current > 1.0 ? "warning" : "normal"} />
+            <StatusBadge status={!isOnline ? "warning" : reading.current > 2.0 ? "critical" : reading.current > 1.0 ? "warning" : "normal"} />
           </div>
           <p className="text-body-sm text-on-surface-variant mt-1">
             {device.id} &middot; {device.location} &middot; updated{" "}
@@ -38,7 +40,7 @@ export default function Dashboard() {
             <Activity size={18} className="text-primary" />
             <span className="text-body-sm font-bold text-on-surface">ESP32 Hardware Status:</span>
             <span className="text-body-sm font-mono font-bold px-2 py-0.5 rounded bg-primary-container/20 text-primary">
-              {reading.health || "Normal"}
+              {isOnline ? (reading.health || "Hardware Online") : "Hardware Offline (0V / 0A)"}
             </span>
           </div>
           {reading.alertMsg && (
@@ -73,8 +75,8 @@ export default function Dashboard() {
 
       {/* Live Telemetry Metrics Grid */}
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-md">
-        <MetricTile label={t("dashboard.voltage")} value={reading.voltage.toFixed(1)} unit="V" icon={Zap} status="normal" />
-        <MetricTile label={t("dashboard.current")} value={reading.current.toFixed(1)} unit="A" icon={Gauge} status={reading.current > 2.0 ? "critical" : reading.current > 1.0 ? "warning" : "normal"} />
+        <MetricTile label={t("dashboard.voltage")} value={reading.voltage.toFixed(1)} unit="V" icon={Zap} status={isOnline ? "normal" : undefined} />
+        <MetricTile label={t("dashboard.current")} value={reading.current.toFixed(1)} unit="A" icon={Gauge} status={!isOnline ? undefined : reading.current > 2.0 ? "critical" : reading.current > 1.0 ? "warning" : "normal"} />
         <MetricTile
           label={t("dashboard.temperature")}
           value={reading.temperature.toFixed(1)}
@@ -89,7 +91,7 @@ export default function Dashboard() {
           icon={Power}
           status={reading.relayState === "closed" || relay.state === "closed" ? "normal" : "critical"}
         />
-        <MetricTile label={t("dashboard.device")} value={isOnline ? t("dashboard.online") : t("dashboard.offline")} icon={Wifi} status={isOnline ? "normal" : "critical"} />
+        <MetricTile label={t("dashboard.device")} value={isOnline ? t("dashboard.online") : t("dashboard.offline")} icon={Wifi} status={isOnline ? "normal" : undefined} />
       </div>
 
       {/* Recent Alerts Table */}
