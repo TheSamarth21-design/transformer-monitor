@@ -22,7 +22,7 @@ export function PredictiveAnalyticsCard() {
   const [mlData, setMlData] = useState<MlAnalysisData>({
     healthScore: 95,
     riskLevel: "LOW",
-    failureMode: "Synchronized Blynk Hardware Nominal",
+    failureMode: "Transformer Hardware Nominal",
     recommendedAction: "System operating within safe physical parameters.",
     metrics: {
       loadRatioPercent: 0,
@@ -40,7 +40,7 @@ export function PredictiveAnalyticsCard() {
 
     let healthScore = 95;
     let riskLevel: "LOW" | "MODERATE" | "HIGH" | "CRITICAL" = "LOW";
-    let failureMode = "Synchronized Blynk Hardware Nominal";
+    let failureMode = "Transformer Hardware Nominal";
     let recommendedAction = "System operating within safe physical parameters.";
 
     const loadRatioPercent = Math.min(100, Math.round((cur / 2.0) * 100));
@@ -127,7 +127,7 @@ export function PredictiveAnalyticsCard() {
           </div>
           <div>
             <h2 className="text-headline-sm font-bold text-on-surface">
-              Blynk Hardware Health & Analytics
+              Transformer Health & Predictive Analytics
             </h2>
             <p className="text-body-sm text-on-surface-variant">
               Live hardware health index & failure mode prediction
@@ -147,7 +147,7 @@ export function PredictiveAnalyticsCard() {
       <div className="grid grid-cols-1 md:grid-cols-3 gap-md items-center bg-surface-container/40 p-md rounded-xl border border-outline-variant/40">
         <div>
           <span className="text-label-sm uppercase text-on-surface-variant">
-            Blynk Health Index Score
+            Transformer Health Index
           </span>
           <div className="flex items-baseline gap-1 mt-1">
             <span className={`text-display-sm font-bold font-mono ${healthScoreColor.split(" ")[0]}`}>
