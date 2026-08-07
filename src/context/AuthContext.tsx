@@ -1,4 +1,13 @@
 import { createContext, useContext, useEffect, useState } from "react";
+import { auth, db } from "@/lib/firebase";
+import {
+  createUserWithEmailAndPassword,
+  signInWithEmailAndPassword,
+  signOut,
+  updateProfile,
+  onAuthStateChanged,
+} from "firebase/auth";
+import { doc, setDoc, getDoc } from "firebase/firestore";
 import { apiRequest } from "@/lib/api";
 
 export interface UserProfile {
@@ -26,59 +35,159 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [token, setToken] = useState<string | null>(() => localStorage.getItem("token"));
   const [isLoading, setIsLoading] = useState<boolean>(true);
 
+  // Firebase Auth State Listener
   useEffect(() => {
-    const activeToken = localStorage.getItem("token");
-    if (!activeToken) {
-      setIsLoading(false);
-      return;
-    }
+    const unsubscribe = onAuthStateChanged(auth, async (fbUser: any) => {
+      if (fbUser) {
+        const idToken = await fbUser.getIdToken();
+        localStorage.setItem("token", idToken);
+        setToken(idToken);
 
-    apiRequest<{ user: UserProfile }>("/auth/me")
-      .then((data) => {
-        if (data.user) {
-          setUser(data.user);
-        } else if ((data as any).email) {
-          setUser(data as any);
+        let role = "Substation Engineer";
+        try {
+          const userDoc = await getDoc(doc(db, "users", fbUser.uid));
+          if (userDoc.exists()) {
+            role = userDoc.data().role || role;
+          }
+        } catch {
+          // Ignore
         }
-      })
-      .catch(() => {
-        // Clear stale token
-        localStorage.removeItem("token");
-        setToken(null);
-        setUser(null);
-      })
-      .finally(() => {
-        setIsLoading(false);
-      });
-  }, [token]);
 
-  const login = async (email: string, password: string) => {
-    const data = await apiRequest<{ token: string; user: UserProfile }>("/auth/login", {
-      method: "POST",
-      body: JSON.stringify({ email, password }),
+        setUser({
+          id: fbUser.uid,
+          email: fbUser.email || "engineer@transformer.com",
+          name: fbUser.displayName || fbUser.email?.split("@")[0] || "Substation Engineer",
+          role,
+        });
+      } else {
+        const localToken = localStorage.getItem("token");
+        if (localToken && !token) {
+          apiRequest<{ user: UserProfile }>("/auth/me")
+            .then((data) => {
+              if (data.user) setUser(data.user);
+            })
+            .catch(() => {
+              localStorage.removeItem("token");
+              setToken(null);
+              setUser(null);
+            });
+        }
+      }
+      setIsLoading(false);
     });
 
-    if (data.token) {
-      localStorage.setItem("token", data.token);
-      setToken(data.token);
-      setUser(data.user);
+    return () => unsubscribe();
+  }, []);
+
+  const login = async (email: string, password: string) => {
+    try {
+      // 1. Try Firebase Authentication Cloud Sign In
+      const userCredential = await signInWithEmailAndPassword(auth, email.trim(), password);
+      const fbUser = userCredential.user;
+      const idToken = await fbUser.getIdToken();
+
+      localStorage.setItem("token", idToken);
+      setToken(idToken);
+
+      let role = "Substation Engineer";
+      try {
+        const userDoc = await getDoc(doc(db, "users", fbUser.uid));
+        if (userDoc.exists()) {
+          role = userDoc.data().role || role;
+        }
+      } catch {
+        // Ignore
+      }
+
+      setUser({
+        id: fbUser.uid,
+        email: fbUser.email || email,
+        name: fbUser.displayName || email.split("@")[0],
+        role,
+      });
+      return;
+    } catch (firebaseErr: any) {
+      // 2. Fallback to Express Backend Auth API
+      try {
+        const data = await apiRequest<{ token: string; user: UserProfile }>("/auth/login", {
+          method: "POST",
+          body: JSON.stringify({ email, password }),
+        });
+
+        if (data.token) {
+          localStorage.setItem("token", data.token);
+          setToken(data.token);
+          setUser(data.user);
+          return;
+        }
+      } catch {
+        // Throw original firebase error if both fail
+      }
+
+      let errorMsg = firebaseErr.message || "Failed to sign in.";
+      if (firebaseErr.code === "auth/user-not-found" || firebaseErr.code === "auth/wrong-password" || firebaseErr.code === "auth/invalid-credential") {
+        errorMsg = "Invalid email or password. If you haven't registered, click 'Register Member'.";
+      }
+      throw new Error(errorMsg);
     }
   };
 
   const register = async (name: string, email: string, password: string, role?: string) => {
-    const data = await apiRequest<{ token: string; user: UserProfile }>("/auth/register", {
-      method: "POST",
-      body: JSON.stringify({ name, email, password, role }),
-    });
+    try {
+      // 1. Register Member directly in Firebase Authentication Cloud
+      const userCredential = await createUserWithEmailAndPassword(auth, email.trim(), password);
+      const fbUser = userCredential.user;
 
-    if (data.token) {
-      localStorage.setItem("token", data.token);
-      setToken(data.token);
-      setUser(data.user);
+      // Update Firebase Profile display name
+      await updateProfile(fbUser, { displayName: name });
+
+      const userRole = role || "Substation Engineer";
+      const idToken = await fbUser.getIdToken();
+
+      // Store member profile record in Cloud Firestore
+      try {
+        await setDoc(doc(db, "users", fbUser.uid), {
+          id: fbUser.uid,
+          name,
+          email: email.trim(),
+          role: userRole,
+          createdAt: new Date().toISOString(),
+        });
+      } catch {
+        // Ignore firestore rule errors if rules restricted
+      }
+
+      // Also register on Express backend if available
+      try {
+        await apiRequest("/auth/register", {
+          method: "POST",
+          body: JSON.stringify({ name, email, password, role: userRole }),
+        });
+      } catch {
+        // Ignore if Vercel serverless host
+      }
+
+      localStorage.setItem("token", idToken);
+      setToken(idToken);
+      setUser({
+        id: fbUser.uid,
+        email: email.trim(),
+        name,
+        role: userRole,
+      });
+    } catch (firebaseErr: any) {
+      let errorMsg = firebaseErr.message || "Failed to register member.";
+      if (firebaseErr.code === "auth/email-already-in-use") {
+        errorMsg = "An account with this email address already exists. Please Sign In.";
+      } else if (firebaseErr.code === "auth/weak-password") {
+        errorMsg = "Password should be at least 6 characters long.";
+      }
+      throw new Error(errorMsg);
     }
   };
 
   const logout = () => {
+    signOut(auth).catch(() => {});
     localStorage.removeItem("token");
     setToken(null);
     setUser(null);
@@ -89,7 +198,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       value={{
         user,
         token,
-        isAuthenticated: Boolean(token && user),
+        isAuthenticated: Boolean(token || user),
         isLoading,
         login,
         register,
