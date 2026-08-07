@@ -11,19 +11,22 @@ import {
   Zap,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-
-const NAV_ITEMS = [
-  { to: "/", label: "Dashboard", icon: LayoutDashboard },
-  { to: "/live-monitoring", label: "Live monitoring", icon: Activity },
-  { to: "/relay-control", label: "Relay control", icon: Power },
-  { to: "/analytics", label: "Analytics", icon: LineChart },
-  { to: "/location", label: "Location", icon: MapPin },
-  { to: "/alerts", label: "Alerts", icon: Bell },
-  { to: "/reports", label: "Reports", icon: FileText },
-  { to: "/settings", label: "Settings", icon: Settings },
-];
+import { useLanguage } from "@/context/LanguageContext";
 
 export function Sidebar() {
+  const { t } = useLanguage();
+
+  const NAV_ITEMS = [
+    { to: "/", label: t("nav.dashboard"), icon: LayoutDashboard },
+    { to: "/live-monitoring", label: t("nav.liveMonitoring"), icon: Activity },
+    { to: "/relay-control", label: t("nav.relayControl"), icon: Power },
+    { to: "/analytics", label: t("nav.analytics"), icon: LineChart },
+    { to: "/location", label: t("nav.location"), icon: MapPin },
+    { to: "/alerts", label: t("nav.alerts"), icon: Bell },
+    { to: "/reports", label: t("nav.reports"), icon: FileText },
+    { to: "/settings", label: t("nav.settings"), icon: Settings },
+  ];
+
   return (
     <aside className="hidden md:flex md:w-sidebar-width md:flex-col shrink-0 bg-[#191c1d] dark:bg-surface-container-lowest border-r border-outline-variant">
       <div className="flex items-center gap-2 px-md h-14 border-b border-white/10 dark:border-outline-variant">

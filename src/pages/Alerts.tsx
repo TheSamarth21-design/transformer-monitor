@@ -1,22 +1,24 @@
 import { useMemo, useState } from "react";
 import { StatusBadge } from "@/components/StatusBadge";
 import { useAlerts } from "@/hooks/useSensorData";
+import { useLanguage } from "@/context/LanguageContext";
 import { cn } from "@/lib/utils";
 import type { AlertStatus } from "@/lib/types";
-
-const FILTERS: { key: AlertStatus | "all"; label: string }[] = [
-  { key: "all", label: "All" },
-  { key: "active", label: "Active" },
-  { key: "acknowledged", label: "Acknowledged" },
-  { key: "resolved", label: "Resolved" },
-];
 
 export default function Alerts() {
   const alertsData = useAlerts();
   const alerts = Array.isArray(alertsData) ? alertsData : [];
   const updateAlertStatus = (alertsData as any).updateAlertStatus;
+  const { t } = useLanguage();
 
   const [filter, setFilter] = useState<AlertStatus | "all">("all");
+
+  const FILTERS: { key: AlertStatus | "all"; label: string }[] = [
+    { key: "all", label: t("alerts.all") },
+    { key: "active", label: t("alerts.active") },
+    { key: "acknowledged", label: t("alerts.acknowledged") },
+    { key: "resolved", label: t("alerts.resolved") },
+  ];
 
   const filtered = useMemo(
     () => (filter === "all" ? alerts : alerts.filter((a) => a.status === filter)),
@@ -37,12 +39,12 @@ export default function Alerts() {
 
   return (
     <div className="flex flex-col gap-lg">
-      <h1 className="text-headline-lg text-on-surface">Alerts</h1>
+      <h1 className="text-headline-lg text-on-surface">{t("alerts.title")}</h1>
 
       <div className="flex gap-md text-body-sm">
-        <span className="text-error">{counts.critical} critical</span>
-        <span className="text-warning">{counts.warning} warning</span>
-        <span className="text-on-surface-variant">{counts.info} info</span>
+        <span className="text-error">{counts.critical} {t("alerts.critical")}</span>
+        <span className="text-warning">{counts.warning} {t("alerts.warning")}</span>
+        <span className="text-on-surface-variant">{counts.info} {t("alerts.info")}</span>
       </div>
 
       <div className="flex items-center gap-1 rounded border border-outline-variant p-0.5 w-fit">
@@ -64,12 +66,12 @@ export default function Alerts() {
         <table className="w-full text-body-sm">
           <thead>
             <tr className="text-left text-label-sm uppercase text-on-surface-variant border-b border-outline-variant">
-              <th className="px-md py-sm font-medium">Severity</th>
-              <th className="px-md py-sm font-medium">Alert</th>
-              <th className="px-md py-sm font-medium">Description</th>
-              <th className="px-md py-sm font-medium">Time</th>
-              <th className="px-md py-sm font-medium">Status</th>
-              <th className="px-md py-sm font-medium text-right">Action</th>
+              <th className="px-md py-sm font-medium">{t("dashboard.severity")}</th>
+              <th className="px-md py-sm font-medium">{t("dashboard.alert")}</th>
+              <th className="px-md py-sm font-medium">{t("alerts.description")}</th>
+              <th className="px-md py-sm font-medium">{t("dashboard.time")}</th>
+              <th className="px-md py-sm font-medium">{t("dashboard.status")}</th>
+              <th className="px-md py-sm font-medium text-right">{t("alerts.action")}</th>
             </tr>
           </thead>
           <tbody>
@@ -83,14 +85,16 @@ export default function Alerts() {
                 <td className="px-md py-sm font-mono text-on-surface-variant">
                   {new Date(a.timestamp).toLocaleString()}
                 </td>
-                <td className="px-md py-sm text-on-surface-variant capitalize font-medium">{a.status}</td>
+                <td className="px-md py-sm text-on-surface-variant capitalize font-medium">
+                  {a.status === "active" ? t("alerts.active") : a.status === "acknowledged" ? t("alerts.acknowledged") : t("alerts.resolved")}
+                </td>
                 <td className="px-md py-sm text-right">
                   {a.status === "active" && (
                     <button
                       onClick={() => handleStatusChange(a.id, "acknowledged")}
                       className="px-2 py-1 text-xs rounded border border-outline-variant hover:bg-surface-container text-on-surface"
                     >
-                      Acknowledge
+                      {t("alerts.acknowledgeBtn")}
                     </button>
                   )}
                   {a.status === "acknowledged" && (
@@ -98,11 +102,11 @@ export default function Alerts() {
                       onClick={() => handleStatusChange(a.id, "resolved")}
                       className="px-2 py-1 text-xs rounded border border-success text-success hover:bg-success-container/30"
                     >
-                      Resolve
+                      {t("alerts.resolveBtn")}
                     </button>
                   )}
                   {a.status === "resolved" && (
-                    <span className="text-xs text-on-surface-variant">Resolved</span>
+                    <span className="text-xs text-on-surface-variant">{t("alerts.resolved")}</span>
                   )}
                 </td>
               </tr>

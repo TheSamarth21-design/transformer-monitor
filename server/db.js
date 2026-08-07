@@ -13,6 +13,9 @@ if (!fs.existsSync(dataDir)) {
 const dbPath = path.join(dataDir, "transformer.db");
 const db = new sqlite3.Database(dbPath);
 
+const DEFAULT_BLYNK_TOKEN = "uR3iUqcSJMTS7-OEfnsuSDj-5Sqrxl0L";
+const DEFAULT_TEMPLATE_NAME = "Smart Transformer";
+
 // Helper promise wrappers for sqlite3
 export function run(sql, params = []) {
   return new Promise((resolve, reject) => {
@@ -65,7 +68,8 @@ export async function initDb() {
       lng REAL,
       status TEXT,
       online INTEGER,
-      last_updated TEXT
+      last_updated TEXT,
+      google_maps_link TEXT
     )
   `);
 
@@ -120,29 +124,46 @@ export async function initDb() {
       language TEXT,
       notify_critical INTEGER,
       notify_warning INTEGER,
-      notify_offline INTEGER
+      notify_offline INTEGER,
+      blynk_auth_token TEXT
     )
   `);
+
+  // Try adding blynk_auth_token column if schema updated
+  try {
+    await run(`ALTER TABLE settings ADD COLUMN blynk_auth_token TEXT`);
+  } catch {
+    // Column already exists
+  }
+
+  try {
+    await run(`ALTER TABLE device ADD COLUMN google_maps_link TEXT`);
+  } catch {
+    // Column already exists
+  }
 
   // Seed default device if missing
   const existingDevice = await get(`SELECT * FROM device WHERE id = ?`, ["TR-0042"]);
   if (!existingDevice) {
     await run(
-      `INSERT INTO device (id, name, location, lat, lng, status, online, last_updated) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO device (id, name, location, lat, lng, status, online, last_updated, google_maps_link) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         "TR-0042",
-        "Distribution Transformer 42",
+        DEFAULT_TEMPLATE_NAME,
         "Sector 4B, Pimpri-Chinchwad",
         18.6298,
         73.8131,
-        "warning",
+        "normal",
         1,
         new Date().toISOString(),
+        "https://maps.google.com/?q=18.6298,73.8131",
       ]
     );
+  } else {
+    await run(`UPDATE device SET name = ? WHERE id = ?`, [DEFAULT_TEMPLATE_NAME, "TR-0042"]);
   }
 
-  // Seed default relay status if missing
+  // Seed default relay status with 2A max_current threshold
   const existingRelay = await get(`SELECT * FROM relay_status WHERE id = ?`, ["relay-1"]);
   if (!existingRelay) {
     await run(
@@ -152,86 +173,29 @@ export async function initDb() {
         "relay-1",
         "closed",
         1,
-        "Over-temperature (92C)",
+        "Over-current (3.5A)",
         new Date(Date.now() - 1000 * 60 * 60 * 26).toISOString(),
         90,
-        100,
+        2.0, // 2A threshold
         260,
       ]
     );
+  } else {
+    await run(`UPDATE relay_status SET max_current = ? WHERE id = ?`, [2.0, "relay-1"]);
   }
 
-  // Seed initial relay events if empty
-  const eventCount = await get(`SELECT COUNT(*) as count FROM relay_events`);
-  if (eventCount && eventCount.count === 0) {
-    const now = Date.now();
-    await run(
-      `INSERT INTO relay_events (id, timestamp, cause, duration_minutes) VALUES (?, ?, ?, ?)`,
-      ["evt-1", new Date(now - 1000 * 60 * 60 * 26).toISOString(), "Over-temperature (92C)", 14]
-    );
-    await run(
-      `INSERT INTO relay_events (id, timestamp, cause, duration_minutes) VALUES (?, ?, ?, ?)`,
-      ["evt-2", new Date(now - 1000 * 60 * 60 * 24 * 4).toISOString(), "Over-current (108A)", 6]
-    );
-    await run(
-      `INSERT INTO relay_events (id, timestamp, cause, duration_minutes) VALUES (?, ?, ?, ?)`,
-      ["evt-3", new Date(now - 1000 * 60 * 60 * 24 * 11).toISOString(), "Manual trip (maintenance)", 120]
-    );
-  }
-
-  // Seed initial alerts if empty
-  const alertCount = await get(`SELECT COUNT(*) as count FROM alerts`);
-  if (alertCount && alertCount.count === 0) {
-    const now = Date.now();
-    await run(
-      `INSERT INTO alerts (id, severity, title, description, timestamp, status) VALUES (?, ?, ?, ?, ?, ?)`,
-      ["al-1", "critical", "High temperature", "Oil temperature reached 63C, above the 60C warning threshold.", new Date(now - 1000 * 60 * 12).toISOString(), "active"]
-    );
-    await run(
-      `INSERT INTO alerts (id, severity, title, description, timestamp, status) VALUES (?, ?, ?, ?, ?, ?)`,
-      ["al-2", "warning", "Current overload", "Load current at 96% of rated capacity.", new Date(now - 1000 * 60 * 55).toISOString(), "active"]
-    );
-    await run(
-      `INSERT INTO alerts (id, severity, title, description, timestamp, status) VALUES (?, ?, ?, ?, ?, ?)`,
-      ["al-3", "warning", "High humidity", "Enclosure humidity at 78%, above nominal range.", new Date(now - 1000 * 60 * 60 * 3).toISOString(), "acknowledged"]
-    );
-    await run(
-      `INSERT INTO alerts (id, severity, title, description, timestamp, status) VALUES (?, ?, ?, ?, ?, ?)`,
-      ["al-4", "info", "Device reconnected", "ESP32 node came back online after a 4 minute gap.", new Date(now - 1000 * 60 * 60 * 9).toISOString(), "resolved"]
-    );
-    await run(
-      `INSERT INTO alerts (id, severity, title, description, timestamp, status) VALUES (?, ?, ?, ?, ?, ?)`,
-      ["al-5", "critical", "Relay tripped", "Automatic trip triggered by over-temperature protection.", new Date(now - 1000 * 60 * 60 * 26).toISOString(), "resolved"]
-    );
-  }
-
-  // Seed initial telemetry points if empty
-  const telemetryCount = await get(`SELECT COUNT(*) as count FROM telemetry`);
-  if (telemetryCount && telemetryCount.count === 0) {
-    const now = Date.now();
-    for (let i = 24; i >= 0; i--) {
-      const timestamp = new Date(now - i * 3600 * 1000).toISOString();
-      const v = 228 + Math.random() * 6;
-      const c = 40 + Math.random() * 8;
-      const t = 52 + Math.random() * 10;
-      const h = 45 + Math.random() * 6;
-      await run(
-        `INSERT INTO telemetry (voltage, current, temperature, humidity, timestamp) VALUES (?, ?, ?, ?, ?)`,
-        [+v.toFixed(1), +c.toFixed(1), +t.toFixed(1), +h.toFixed(1), timestamp]
-      );
-    }
-  }
-
-  // Seed settings if missing
+  // Seed settings with user's Blynk Auth Token
   const existingSettings = await get(`SELECT * FROM settings WHERE id = ?`, ["settings-1"]);
   if (!existingSettings) {
     await run(
-      `INSERT INTO settings (id, theme, language, notify_critical, notify_warning, notify_offline) VALUES (?, ?, ?, ?, ?, ?)`,
-      ["settings-1", "dark", "English", 1, 1, 0]
+      `INSERT INTO settings (id, theme, language, notify_critical, notify_warning, notify_offline, blynk_auth_token) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      ["settings-1", "dark", "English", 1, 1, 0, DEFAULT_BLYNK_TOKEN]
     );
+  } else {
+    await run(`UPDATE settings SET blynk_auth_token = ? WHERE id = ?`, [DEFAULT_BLYNK_TOKEN, "settings-1"]);
   }
 
-  console.log("[SQLite] Database initialized and seeded successfully.");
+  console.log(`[SQLite] Database initialized with Blynk Template '${DEFAULT_TEMPLATE_NAME}' & Auth Token.`);
 }
 
 export default db;

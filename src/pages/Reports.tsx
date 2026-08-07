@@ -1,12 +1,14 @@
 import { useState } from "react";
 import { FileDown, FileSpreadsheet, Printer } from "lucide-react";
 import { useHistory, useRelayEvents } from "@/hooks/useSensorData";
+import { useLanguage } from "@/context/LanguageContext";
 import { cn } from "@/lib/utils";
 
 const REPORT_TYPES = ["Daily", "Weekly", "Monthly"] as const;
 type ReportType = (typeof REPORT_TYPES)[number];
 
 function average(nums: number[]) {
+  if (!nums.length) return "0.0";
   return (nums.reduce((a, b) => a + b, 0) / nums.length).toFixed(1);
 }
 
@@ -15,10 +17,23 @@ export default function Reports() {
   const range = reportType === "Daily" ? "day" : reportType === "Weekly" ? "week" : "month";
   const data = useHistory(range);
   const trips = useRelayEvents();
+  const { t } = useLanguage();
+
+  const typeLabels: Record<ReportType, string> = {
+    Daily: t("reports.daily"),
+    Weekly: t("reports.weekly"),
+    Monthly: t("reports.monthly"),
+  };
+
+  const subLabels: Record<ReportType, string> = {
+    Daily: t("reports.last24h"),
+    Weekly: t("reports.last7d"),
+    Monthly: t("reports.last30d"),
+  };
 
   return (
     <div className="flex flex-col gap-lg">
-      <h1 className="text-headline-lg text-on-surface">Reports</h1>
+      <h1 className="text-headline-lg text-on-surface">{t("reports.title")}</h1>
 
       <div className="flex gap-sm">
         {REPORT_TYPES.map((type) => (
@@ -32,9 +47,9 @@ export default function Reports() {
                 : "border-outline-variant hover:bg-surface-container"
             )}
           >
-            <p className="text-headline-sm text-on-surface">{type}</p>
+            <p className="text-headline-sm text-on-surface">{typeLabels[type]}</p>
             <p className="text-body-sm text-on-surface-variant mt-1">
-              {type === "Daily" ? "Last 24 hours" : type === "Weekly" ? "Last 7 days" : "Last 30 days"}
+              {subLabels[type]}
             </p>
           </button>
         ))}
@@ -42,16 +57,18 @@ export default function Reports() {
 
       <div className="rounded border border-outline-variant bg-surface-container-lowest p-md">
         <div className="flex items-center justify-between mb-md">
-          <h2 className="text-label-md uppercase text-on-surface-variant">{reportType} summary</h2>
+          <h2 className="text-label-md uppercase text-on-surface-variant">
+            {typeLabels[reportType]} {t("reports.summary")}
+          </h2>
           <div className="flex gap-2">
             <button className="h-8 px-sm rounded border border-outline-variant text-body-sm text-on-surface flex items-center gap-1 hover:bg-surface-container">
-              <FileDown size={14} /> PDF
+              <FileDown size={14} /> {t("reports.pdf")}
             </button>
             <button className="h-8 px-sm rounded border border-outline-variant text-body-sm text-on-surface flex items-center gap-1 hover:bg-surface-container">
-              <FileSpreadsheet size={14} /> CSV
+              <FileSpreadsheet size={14} /> {t("reports.csv")}
             </button>
             <button className="h-8 px-sm rounded border border-outline-variant text-body-sm text-on-surface flex items-center gap-1 hover:bg-surface-container">
-              <Printer size={14} /> Print
+              <Printer size={14} /> {t("reports.print")}
             </button>
           </div>
         </div>
@@ -59,31 +76,31 @@ export default function Reports() {
         <table className="w-full text-body-sm">
           <tbody>
             <tr className="border-b border-outline-variant">
-              <td className="px-md py-sm text-on-surface-variant">Average voltage</td>
+              <td className="px-md py-sm text-on-surface-variant">{t("reports.avgVoltage")}</td>
               <td className="px-md py-sm font-mono text-on-surface text-right">
                 {average(data.map((d) => d.voltage))} V
               </td>
             </tr>
             <tr className="border-b border-outline-variant">
-              <td className="px-md py-sm text-on-surface-variant">Average current</td>
+              <td className="px-md py-sm text-on-surface-variant">{t("reports.avgCurrent")}</td>
               <td className="px-md py-sm font-mono text-on-surface text-right">
                 {average(data.map((d) => d.current))} A
               </td>
             </tr>
             <tr className="border-b border-outline-variant">
-              <td className="px-md py-sm text-on-surface-variant">Average temperature</td>
+              <td className="px-md py-sm text-on-surface-variant">{t("reports.avgTemperature")}</td>
               <td className="px-md py-sm font-mono text-on-surface text-right">
-                {average(data.map((d) => d.temperature))} C
+                {average(data.map((d) => d.temperature))} °C
               </td>
             </tr>
             <tr className="border-b border-outline-variant">
-              <td className="px-md py-sm text-on-surface-variant">Average humidity</td>
+              <td className="px-md py-sm text-on-surface-variant">{t("reports.avgHumidity")}</td>
               <td className="px-md py-sm font-mono text-on-surface text-right">
                 {average(data.map((d) => d.humidity))} %
               </td>
             </tr>
             <tr>
-              <td className="px-md py-sm text-on-surface-variant">Relay trips in period</td>
+              <td className="px-md py-sm text-on-surface-variant">{t("reports.relayTrips")}</td>
               <td className="px-md py-sm font-mono text-on-surface text-right">{trips.length}</td>
             </tr>
           </tbody>

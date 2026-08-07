@@ -7,7 +7,7 @@
     "dev": "vite",
     "server": "node server/index.js",
     "simulate": "node server/simulator.js",
-    "dev:all": "concurrently \"npm run dev\" \"npm run server\" \"npm run simulate\"",
+    "dev:all": "concurrently \"npm run dev\" \"npm run server\"",
     "build": "tsc -b && vite build",
     "preview": "vite preview",
     "lint": "eslint ."

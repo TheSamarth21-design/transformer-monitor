@@ -1,19 +1,22 @@
 import { get, run } from "./db.js";
+import { setBlynkRelayState } from "./blynk.js";
 
-export async function processTelemetryProtection(telemetry, broadcastWs) {
+export async function processTelemetryProtection(telemetry, broadcastWs, blynkToken) {
   try {
     const relay = await get(`SELECT * FROM relay_status WHERE id = ?`, ["relay-1"]);
+    const device = await get(`SELECT * FROM device WHERE id = ?`, ["TR-0042"]);
     if (!relay) return;
 
-    const { voltage, current, temperature } = telemetry;
+    const { voltage, current, temperature, humidity } = telemetry;
+    const maxCurrentLimit = relay.max_current || 2.0; // 2A threshold
     let tripReason = null;
 
-    if (temperature > relay.max_temperature) {
-      tripReason = `Over-temperature (${temperature}°C > threshold ${relay.max_temperature}°C)`;
-    } else if (current > relay.max_current) {
-      tripReason = `Over-current (${current}A > threshold ${relay.max_current}A)`;
+    if (current > maxCurrentLimit) {
+      tripReason = `Over-current Overload (${current.toFixed(1)}A > ${maxCurrentLimit.toFixed(1)}A safety limit)`;
+    } else if (temperature > relay.max_temperature) {
+      tripReason = `Over-temperature Heat Damage (${temperature.toFixed(1)}°C > ${relay.max_temperature.toFixed(1)}°C limit)`;
     } else if (voltage > relay.max_voltage) {
-      tripReason = `Over-voltage (${voltage}V > threshold ${relay.max_voltage}V)`;
+      tripReason = `Over-voltage Voltage Surge (${voltage.toFixed(1)}V > ${relay.max_voltage.toFixed(1)}V limit)`;
     }
 
     let trippedNow = false;
@@ -23,32 +26,37 @@ export async function processTelemetryProtection(telemetry, broadcastWs) {
       const eventId = `evt-${Date.now()}`;
       const alertId = `al-${Date.now()}`;
 
-      // Update relay state
+      // Update local SQLite relay state to tripped
       await run(
         `UPDATE relay_status SET state = ?, last_trip_reason = ?, last_trip_at = ? WHERE id = ?`,
         ["tripped", tripReason, now, "relay-1"]
       );
 
-      // Log relay event
+      // Hardware relay trip via Blynk Cloud API (V6=0)
+      if (blynkToken) {
+        await setBlynkRelayState("tripped", blynkToken);
+      }
+
+      // Log relay trip event
       await run(
         `INSERT INTO relay_events (id, timestamp, cause, duration_minutes) VALUES (?, ?, ?, ?)`,
         [eventId, now, tripReason, 0]
       );
 
-      // Create critical alert
+      // Create critical emergency alert record
       await run(
         `INSERT INTO alerts (id, severity, title, description, timestamp, status) VALUES (?, ?, ?, ?, ?, ?)`,
         [
           alertId,
           "critical",
-          "Relay Tripped Automatically",
-          `Protection system activated: ${tripReason}`,
+          "⚡ CRITICAL EMERGENCY: Transformer Damage Protection Activated",
+          `Overload Detected on ${device?.name || "Distribution Transformer 42"}: ${tripReason}`,
           now,
           "active",
         ]
       );
 
-      // Update device health status to critical
+      // Update device health status
       await run(`UPDATE device SET status = ?, last_updated = ? WHERE id = ?`, [
         "critical",
         now,
@@ -57,25 +65,28 @@ export async function processTelemetryProtection(telemetry, broadcastWs) {
 
       trippedNow = true;
 
-      // Broadcast alert & relay update via WS
+      // Broadcast full emergency diagnostic payload via WebSockets
       if (broadcastWs) {
         broadcastWs({
-          type: "RELAY_TRIPPED",
+          type: "EMERGENCY_POPUP_ALERT",
           data: {
-            reason: tripReason,
+            alertId,
+            deviceId: device?.id || "TR-0042",
+            deviceName: device?.name || "Distribution Transformer 42",
+            location: device?.location || "Sector 4B, Pimpri-Chinchwad",
+            lat: device?.lat || 18.6298,
+            lng: device?.lng || 73.8131,
+            googleMapUrl: device?.google_maps_link || `https://maps.google.com/?q=${device?.lat},${device?.lng}`,
+            cause: tripReason,
             timestamp: now,
+            voltage,
+            current,
+            temperature,
+            humidity,
             relayState: "tripped",
           },
         });
       }
-    } else if (!tripReason && relay.state === "closed") {
-      // Normal operation check
-      const deviceStatus = temperature > 60 || current > 80 ? "warning" : "normal";
-      await run(`UPDATE device SET status = ?, last_updated = ? WHERE id = ?`, [
-        deviceStatus,
-        new Date().toISOString(),
-        "TR-0042",
-      ]);
     }
 
     return { trippedNow, tripReason };
