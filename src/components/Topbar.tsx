@@ -8,6 +8,7 @@ import { apiRequest } from "@/lib/api";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/context/AuthContext";
 import { playEmergencyAlarmSound, triggerHapticVibration } from "@/lib/notifications";
+import { FailoverBadge } from "@/components/FailoverBadge";
 
 export function Topbar() {
   const { theme, toggleTheme } = useTheme();
@@ -80,7 +81,7 @@ export function Topbar() {
         lat: device.lat || 18.650029,
         lng: device.lng || 73.745274,
         googleMapUrl: device.googleMapsLink || `https://www.google.com/maps?q=18.650029,73.745274`,
-        cause: "Over-current Overload (3.5A > 2.0A safety limit)",
+        cause: "Critical Over-current Overload (3.5A > 2.0A Safety Limit)",
         timestamp: new Date().toISOString(),
         voltage: 231,
         current: 3.5,
@@ -115,56 +116,63 @@ export function Topbar() {
   return (
     <header className="h-14 shrink-0 border-b border-outline-variant bg-surface-container-lowest flex items-center justify-between px-md relative z-40">
       
-      {/* Interactive Transformer Selector Dropdown */}
-      <div className="relative" ref={deviceDropdownRef}>
-        <button
-          onClick={() => {
-            setDeviceDropdownOpen(!deviceDropdownOpen);
-            setNotificationDropdownOpen(false);
-            setUserDropdownOpen(false);
-          }}
-          className="flex items-center gap-2 rounded-lg border border-outline-variant px-sm h-9 text-body-sm text-on-surface hover:bg-surface-container transition-colors cursor-pointer"
-        >
-          <Zap size={15} className="text-primary" />
-          <span className="font-mono font-bold text-primary">{selectedDevice.id}</span>
-          <span className="text-on-surface font-medium hidden sm:inline">{selectedDevice.name}</span>
-          <ChevronDown
-            size={14}
-            className={`text-on-surface-variant transition-transform duration-200 ${
-              deviceDropdownOpen ? "rotate-180" : ""
-            }`}
-          />
-        </button>
+      {/* Interactive Transformer Selector Dropdown & Replication Badge */}
+      <div className="flex items-center gap-3">
+        <div className="relative" ref={deviceDropdownRef}>
+          <button
+            onClick={() => {
+              setDeviceDropdownOpen(!deviceDropdownOpen);
+              setNotificationDropdownOpen(false);
+              setUserDropdownOpen(false);
+            }}
+            className="flex items-center gap-2 rounded-lg border border-outline-variant px-sm h-9 text-body-sm text-on-surface hover:bg-surface-container transition-colors cursor-pointer"
+          >
+            <Zap size={15} className="text-primary" />
+            <span className="font-mono font-bold text-primary">{selectedDevice.id}</span>
+            <span className="text-on-surface font-medium hidden sm:inline">{selectedDevice.name}</span>
+            <ChevronDown
+              size={14}
+              className={`text-on-surface-variant transition-transform duration-200 ${
+                deviceDropdownOpen ? "rotate-180" : ""
+              }`}
+            />
+          </button>
 
-        {deviceDropdownOpen && (
-          <div className="absolute top-11 left-0 w-72 bg-surface-container-lowest border border-outline-variant rounded-xl shadow-xl p-2 flex flex-col gap-1 z-50 animate-in fade-in duration-150">
-            <span className="text-label-sm font-semibold uppercase text-on-surface-variant px-2 py-1">
-              Select Active Transformer
-            </span>
-            {availableTransformers.map((tr) => (
-              <button
-                key={tr.id}
-                onClick={() => selectTransformer(tr)}
-                className={`flex flex-col gap-0.5 p-2 rounded-lg text-left transition-colors cursor-pointer ${
-                  selectedDevice.id === tr.id
-                    ? "bg-primary-container/20 border border-primary/30 text-on-surface"
-                    : "hover:bg-surface-container text-on-surface-variant hover:text-on-surface"
-                }`}
-              >
-                <div className="flex items-center justify-between">
-                  <span className="font-mono text-xs font-bold text-primary">{tr.id}</span>
-                  <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${
-                    tr.status === "warning" ? "bg-warning/20 text-warning" : "bg-success/20 text-success"
-                  }`}>
-                    {tr.status.toUpperCase()}
-                  </span>
-                </div>
-                <span className="text-body-sm font-bold text-on-surface">{tr.name}</span>
-                <span className="text-xs text-on-surface-variant">{tr.location}</span>
-              </button>
-            ))}
-          </div>
-        )}
+          {deviceDropdownOpen && (
+            <div className="absolute top-11 left-0 w-72 bg-surface-container-lowest border border-outline-variant rounded-xl shadow-xl p-2 flex flex-col gap-1 z-50 animate-in fade-in duration-150">
+              <span className="text-label-sm font-semibold uppercase text-on-surface-variant px-2 py-1">
+                Select Active Transformer
+              </span>
+              {availableTransformers.map((tr) => (
+                <button
+                  key={tr.id}
+                  onClick={() => selectTransformer(tr)}
+                  className={`flex flex-col gap-0.5 p-2 rounded-lg text-left transition-colors cursor-pointer ${
+                    selectedDevice.id === tr.id
+                      ? "bg-primary-container/20 border border-primary/30 text-on-surface"
+                      : "hover:bg-surface-container text-on-surface-variant hover:text-on-surface"
+                  }`}
+                >
+                  <div className="flex items-center justify-between">
+                    <span className="font-mono text-xs font-bold text-primary">{tr.id}</span>
+                    <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${
+                      tr.status === "warning" ? "bg-warning/20 text-warning" : "bg-success/20 text-success"
+                    }`}>
+                      {tr.status.toUpperCase()}
+                    </span>
+                  </div>
+                  <span className="text-body-sm font-bold text-on-surface">{tr.name}</span>
+                  <span className="text-xs text-on-surface-variant">{tr.location}</span>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Database WAL Replication Status Badge */}
+        <div className="hidden lg:block">
+          <FailoverBadge />
+        </div>
       </div>
 
       <div className="flex items-center gap-2">

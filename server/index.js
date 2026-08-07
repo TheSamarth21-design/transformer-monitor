@@ -10,6 +10,7 @@ import { startBlynkPoller, setBlynkRelayState, pollBlynkCloud } from "./blynk.js
 import { syncTelemetryToFirestore, logAlertToFirestore } from "./firebase.js";
 import { processMlPredictiveAnalysis } from "./mlEngine.js";
 import authRouter from "./auth.js";
+import { startReplicationLoop, getReplicationMetrics, queueTelemetryLocally } from "./replicationEngine.js";
 
 const JWT_SECRET = process.env.JWT_SECRET || "transformer_super_secret_jwt_key_2026";
 const PORT = process.env.PORT || 5000;
@@ -47,9 +48,15 @@ app.use("/api/auth", authRouter);
 // ROUTES
 // -------------------------------------------------------------
 
-// Health check
-app.get("/api/health", (req, res) => {
-  res.json({ status: "ok", timestamp: new Date().toISOString() });
+// Health check & Replication status
+app.get("/api/health", async (req, res) => {
+  const metrics = await getReplicationMetrics();
+  res.json({ status: "ok", timestamp: new Date().toISOString(), replication: metrics });
+});
+
+app.get("/api/replication/status", async (req, res) => {
+  const metrics = await getReplicationMetrics();
+  res.json(metrics);
 });
 
 // ML Predictive Maintenance Endpoint
@@ -101,7 +108,7 @@ app.post("/api/test-emergency-alert", async (req, res) => {
     const alertId = `al-${Date.now()}`;
     const device = await get(`SELECT * FROM device WHERE id = ?`, ["TR-0042"]);
 
-    const tripReason = "Over-current Overload (3.5A > 1.5A safety limit)";
+    const tripReason = "Critical Over-current Overload (3.5A > 2.0A Safety Limit)";
 
     await run(`UPDATE relay_status SET state = ?, last_trip_reason = ?, last_trip_at = ? WHERE id = ?`, [
       "tripped",
@@ -215,8 +222,12 @@ app.post("/api/telemetry", async (req, res) => {
     const reading = { voltage, current, temperature, humidity, timestamp };
     const mlAnalysis = processMlPredictiveAnalysis(reading);
 
-    // Sync to Firestore Cloud Storage
-    syncTelemetryToFirestore(reading);
+    // Sync to Firestore Cloud Storage with WAL fallback queue
+    try {
+      syncTelemetryToFirestore(reading);
+    } catch {
+      queueTelemetryLocally(reading);
+    }
 
     const protectionResult = await processTelemetryProtection(reading, broadcast);
     await run(`UPDATE device SET online = 1, last_updated = ? WHERE id = ?`, [timestamp, "TR-0042"]);
@@ -555,7 +566,7 @@ async function seedDefaultUser() {
   }
 }
 
-// Initialize DB, HTTP Server, WebSockets and Blynk Poller
+// Initialize DB, HTTP Server, WebSockets, Blynk Poller & WAL Replication Loop
 initDb()
   .then(async () => {
     await seedDefaultUser();
@@ -567,6 +578,7 @@ initDb()
       console.log(` WebSocket:   ws://localhost:${PORT}/ws`);
       console.log(`===================================================`);
       startBlynkPoller(broadcast);
+      startReplicationLoop();
     });
   })
   .catch((err) => {

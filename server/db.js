@@ -129,6 +129,16 @@ export async function initDb() {
     )
   `);
 
+  // WAL Database Replication Queue Table for Offline Cloud Sync
+  await run(`
+    CREATE TABLE IF NOT EXISTS replication_queue (
+      id TEXT PRIMARY KEY,
+      telemetry_json TEXT,
+      synced INTEGER DEFAULT 0,
+      created_at TEXT
+    )
+  `);
+
   try {
     await run(`ALTER TABLE settings ADD COLUMN blynk_auth_token TEXT`);
   } catch {
@@ -186,7 +196,7 @@ export async function initDb() {
     await run(`UPDATE settings SET blynk_auth_token = ? WHERE id = ?`, [DEFAULT_BLYNK_TOKEN, "settings-1"]);
   }
 
-  console.log(`[SQLite] Database initialized for live Blynk GPS sync.`);
+  console.log(`[SQLite] Database initialized with SQLite WAL Replication Queue.`);
 }
 
 export default db;
