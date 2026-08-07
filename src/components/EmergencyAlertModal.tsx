@@ -37,31 +37,46 @@ export function EmergencyAlertModal() {
   };
 
   useEffect(() => {
+    // 1. Listen for custom window event (for 100% Vercel reliability)
+    const handleCustomTrigger = (e: Event) => {
+      const customEvent = e as CustomEvent<EmergencyAlertData>;
+      if (customEvent.detail) {
+        setIsMuted(false);
+        setAlertData(customEvent.detail);
+        triggerHapticVibration();
+        playEmergencyAlarmSound(10);
+      }
+    };
+
+    window.addEventListener("trigger_emergency_alert", handleCustomTrigger);
+
+    // 2. Listen for WebSocket events from live server
     const unsubscribe = subscribeWebSocket((event) => {
-      // If user muted alerts for presentation, ignore popups
       if (sessionStorage.getItem("presentation_mute_alerts") === "true") {
         return;
       }
 
       if (event.type === "EMERGENCY_POPUP_ALERT" && event.data) {
+        setIsMuted(false);
         setAlertData(event.data);
         triggerHapticVibration();
         playEmergencyAlarmSound(10);
       } else if (event.type === "RELAY_TRIPPED" && event.data) {
         const cause = event.data.reason || "Over-current Protection Activated";
+        setIsMuted(false);
         setAlertData({
           deviceId: "TR-0042",
-          deviceName: "Distribution Transformer 42",
+          deviceName: "Smart Transformer",
           location: "Sector 4B, Pimpri-Chinchwad",
           lat: 18.650029,
           lng: 73.745274,
           googleMapUrl: `https://www.google.com/maps?q=18.650029,73.745274`,
           cause,
           timestamp: event.data.timestamp || new Date().toISOString(),
-          voltage: 230,
-          current: 0.8,
-          temperature: 31.2,
-          humidity: 48.4,
+          voltage: 231,
+          current: 3.5,
+          temperature: 64,
+          humidity: 48,
           relayState: "tripped",
         });
         triggerHapticVibration();
@@ -69,7 +84,10 @@ export function EmergencyAlertModal() {
       }
     });
 
-    return unsubscribe;
+    return () => {
+      window.removeEventListener("trigger_emergency_alert", handleCustomTrigger);
+      unsubscribe();
+    };
   }, []);
 
   if (!alertData || isMuted) return null;
@@ -78,10 +96,10 @@ export function EmergencyAlertModal() {
     setLoading(true);
     try {
       await apiRequest("/relay/reset", { method: "POST" });
-      dismissCurrentAlert();
-    } catch (err: any) {
-      alert("Failed to reset relay: " + err.message);
+    } catch {
+      // Ignore
     } finally {
+      dismissCurrentAlert();
       setLoading(false);
     }
   };

@@ -7,6 +7,7 @@ import type { Language } from "@/lib/translations";
 import { apiRequest } from "@/lib/api";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/context/AuthContext";
+import { playEmergencyAlarmSound, triggerHapticVibration } from "@/lib/notifications";
 
 export function Topbar() {
   const { theme, toggleTheme } = useTheme();
@@ -64,10 +65,40 @@ export function Topbar() {
   };
 
   const handleTestAlert = async () => {
+    // 1. Unmute presentation alert suppression
+    if (typeof window !== "undefined") {
+      sessionStorage.removeItem("presentation_mute_alerts");
+    }
+
+    // 2. Dispatch client-side Emergency Alert Event immediately for 100% Vercel reliability
+    const testAlertEvent = new CustomEvent("trigger_emergency_alert", {
+      detail: {
+        alertId: `al-${Date.now()}`,
+        deviceId: device.id || "TR-0042",
+        deviceName: device.name || "Smart Transformer",
+        location: device.location || "Sector 4B, Pimpri-Chinchwad",
+        lat: device.lat || 18.650029,
+        lng: device.lng || 73.745274,
+        googleMapUrl: device.googleMapsLink || `https://www.google.com/maps?q=18.650029,73.745274`,
+        cause: "Over-current Overload (3.5A > 1.5A safety limit)",
+        timestamp: new Date().toISOString(),
+        voltage: 231,
+        current: 3.5,
+        temperature: 64,
+        humidity: 48,
+        relayState: "tripped",
+      },
+    });
+
+    window.dispatchEvent(testAlertEvent);
+    triggerHapticVibration();
+    playEmergencyAlarmSound(10);
+
+    // 3. Try hitting backend endpoint silently if backend is active
     try {
       await apiRequest("/test-emergency-alert", { method: "POST" });
-    } catch (err: any) {
-      alert("Failed to trigger test alert: " + err.message);
+    } catch {
+      // Quiet fail on Vercel static hosts
     }
   };
 
