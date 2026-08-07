@@ -1,4 +1,11 @@
 {
+  "buildCommand": "npm run build",
+  "installCommand": "npm install --legacy-peer-deps",
+  "build": {
+    "env": {
+      "NPM_CONFIG_LEGACY_PEER_DEPS": "true"
+    }
+  },
   "rewrites": [
     { "source": "/api/(.*)", "destination": "/server/index.js" },
     { "source": "/(.*)", "destination": "/index.html" }
