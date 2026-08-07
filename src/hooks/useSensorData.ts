@@ -9,27 +9,27 @@ import type {
 } from "@/lib/types";
 import { apiRequest, subscribeWebSocket } from "@/lib/api";
 
-const MOCK_DEVICE: TransformerDevice = {
+const INITIAL_DEVICE: TransformerDevice = {
   id: "TR-0042",
-  name: "Distribution Transformer 42",
+  name: "Smart Transformer",
   location: "Sector 4B, Pimpri-Chinchwad",
   lat: 18.650029,
   lng: 73.745274,
-  status: "warning",
-  online: true,
+  status: "normal",
+  online: false,
   lastUpdated: new Date().toISOString(),
 };
 
 export function useLiveReading(): LiveReading {
   const [reading, setReading] = useState<LiveReading>({
-    voltage: 230,
-    current: 1.2,
-    temperature: 48,
-    humidity: 46,
+    voltage: 0,
+    current: 0,
+    temperature: 0,
+    humidity: 0,
     lat: 18.650029,
     lng: 73.745274,
-    health: "normal",
-    alertMsg: "System nominal",
+    health: "Connecting...",
+    alertMsg: "Waiting for Blynk Cloud sync...",
     googleMapUrl: "https://www.google.com/maps?q=18.650029,73.745274",
     timestamp: new Date().toISOString(),
   });
@@ -54,7 +54,7 @@ export function useLiveReading(): LiveReading {
 }
 
 export function useDevice(): TransformerDevice {
-  const [device, setDevice] = useState<TransformerDevice>(MOCK_DEVICE);
+  const [device, setDevice] = useState<TransformerDevice>(INITIAL_DEVICE);
 
   useEffect(() => {
     apiRequest<TransformerDevice>("/device")
@@ -80,12 +80,12 @@ export function useRelayStatus(): RelayStatus & {
 } {
   const [relay, setRelay] = useState<RelayStatus>({
     state: "closed",
-    autoTripEnabled: true,
-    lastTripReason: "Over-temperature (92C)",
-    lastTripAt: new Date(Date.now() - 1000 * 60 * 60 * 26).toISOString(),
+    autoTripEnabled: false,
+    lastTripReason: "System Nominal",
+    lastTripAt: new Date().toISOString(),
     thresholds: {
       maxTemperature: 90,
-      maxCurrent: 100,
+      maxCurrent: 50,
       maxVoltage: 260,
     },
   });
