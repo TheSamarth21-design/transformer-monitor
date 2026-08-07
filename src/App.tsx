@@ -1,5 +1,6 @@
 import { Routes, Route } from "react-router-dom";
 import { AppLayout } from "@/layouts/AppLayout";
+import { ProtectedRoute } from "@/components/ProtectedRoute";
 import Dashboard from "@/pages/Dashboard";
 import LiveMonitoring from "@/pages/LiveMonitoring";
 import RelayControl from "@/pages/RelayControl";
@@ -9,15 +10,19 @@ import Alerts from "@/pages/Alerts";
 import Reports from "@/pages/Reports";
 import Settings from "@/pages/Settings";
 import Login from "@/pages/Login";
-import SignUp from "@/pages/SignUp";
 
 export default function App() {
   return (
     <Routes>
       <Route path="/login" element={<Login />} />
-      <Route path="/sign-up" element={<SignUp />} />
 
-      <Route element={<AppLayout />}>
+      <Route
+        element={
+          <ProtectedRoute>
+            <AppLayout />
+          </ProtectedRoute>
+        }
+      >
         <Route path="/" element={<Dashboard />} />
         <Route path="/live-monitoring" element={<LiveMonitoring />} />
         <Route path="/relay-control" element={<RelayControl />} />

@@ -1,11 +1,12 @@
 import { useEffect, useRef, useState } from "react";
-import { Bell, Moon, Sun, ChevronDown, Globe, ShieldAlert, CheckCircle, AlertTriangle, Info, Zap } from "lucide-react";
+import { Bell, Moon, Sun, ChevronDown, Globe, ShieldAlert, AlertTriangle, Info, Zap, User, LogOut } from "lucide-react";
 import { useTheme } from "@/hooks/useTheme";
 import { useAlerts, useDevice } from "@/hooks/useSensorData";
 import { useLanguage } from "@/context/LanguageContext";
 import type { Language } from "@/lib/translations";
 import { apiRequest } from "@/lib/api";
 import { useNavigate } from "react-router-dom";
+import { useAuth } from "@/context/AuthContext";
 
 export function Topbar() {
   const { theme, toggleTheme } = useTheme();
@@ -13,13 +14,16 @@ export function Topbar() {
   const alertsData = useAlerts();
   const alerts = Array.isArray(alertsData) ? alertsData.slice(0, 5) : [];
   const { language, setLanguage } = useLanguage();
+  const { user, logout } = useAuth();
   const navigate = useNavigate();
 
   const [deviceDropdownOpen, setDeviceDropdownOpen] = useState(false);
   const [notificationDropdownOpen, setNotificationDropdownOpen] = useState(false);
+  const [userDropdownOpen, setUserDropdownOpen] = useState(false);
 
   const deviceDropdownRef = useRef<HTMLDivElement>(null);
   const notificationDropdownRef = useRef<HTMLDivElement>(null);
+  const userDropdownRef = useRef<HTMLDivElement>(null);
 
   // Available transformers list for selector dropdown
   const availableTransformers = [
@@ -38,6 +42,9 @@ export function Topbar() {
       }
       if (notificationDropdownRef.current && !notificationDropdownRef.current.contains(event.target as Node)) {
         setNotificationDropdownOpen(false);
+      }
+      if (userDropdownRef.current && !userDropdownRef.current.contains(event.target as Node)) {
+        setUserDropdownOpen(false);
       }
     }
     document.addEventListener("mousedown", handleClickOutside);
@@ -69,6 +76,11 @@ export function Topbar() {
     setDeviceDropdownOpen(false);
   };
 
+  const handleLogout = () => {
+    logout();
+    navigate("/login");
+  };
+
   return (
     <header className="h-14 shrink-0 border-b border-outline-variant bg-surface-container-lowest flex items-center justify-between px-md relative z-40">
       
@@ -78,6 +90,7 @@ export function Topbar() {
           onClick={() => {
             setDeviceDropdownOpen(!deviceDropdownOpen);
             setNotificationDropdownOpen(false);
+            setUserDropdownOpen(false);
           }}
           className="flex items-center gap-2 rounded-lg border border-outline-variant px-sm h-9 text-body-sm text-on-surface hover:bg-surface-container transition-colors cursor-pointer"
         >
@@ -150,6 +163,7 @@ export function Topbar() {
             onClick={() => {
               setNotificationDropdownOpen(!notificationDropdownOpen);
               setDeviceDropdownOpen(false);
+              setUserDropdownOpen(false);
             }}
             aria-label="Notifications"
             className="relative h-8 w-8 flex items-center justify-center rounded-lg hover:bg-surface-container text-on-surface-variant transition-colors cursor-pointer"
@@ -233,6 +247,48 @@ export function Topbar() {
           <Globe size={14} />
           <span>{langLabels[language]}</span>
         </button>
+
+        {/* User Profile & Logout Dropdown */}
+        <div className="relative" ref={userDropdownRef}>
+          <button
+            onClick={() => {
+              setUserDropdownOpen(!userDropdownOpen);
+              setDeviceDropdownOpen(false);
+              setNotificationDropdownOpen(false);
+            }}
+            className="h-8 px-2.5 rounded-lg bg-surface-container border border-outline-variant flex items-center gap-2 hover:bg-surface-container-high transition-colors cursor-pointer"
+          >
+            <div className="h-6 w-6 rounded-full bg-primary/20 text-primary flex items-center justify-center font-bold text-xs">
+              {user?.name ? user.name.charAt(0).toUpperCase() : <User size={14} />}
+            </div>
+            <span className="text-xs font-bold text-on-surface hidden md:inline">{user?.name || "Engineer"}</span>
+            <ChevronDown size={14} className="text-on-surface-variant" />
+          </button>
+
+          {userDropdownOpen && (
+            <div className="absolute top-11 right-0 w-64 bg-surface-container-lowest border border-outline-variant rounded-xl shadow-xl p-3 flex flex-col gap-2 z-50 animate-in fade-in duration-150">
+              <div className="flex items-center gap-2.5 pb-2 border-b border-outline-variant/60">
+                <div className="h-9 w-9 rounded-full bg-primary/20 text-primary flex items-center justify-center font-bold text-sm">
+                  {user?.name ? user.name.charAt(0).toUpperCase() : "E"}
+                </div>
+                <div className="flex flex-col">
+                  <span className="text-xs font-bold text-on-surface">{user?.name || "Substation Engineer"}</span>
+                  <span className="text-[11px] text-on-surface-variant font-mono">{user?.email || "admin@transformer.com"}</span>
+                  <span className="text-[10px] text-primary font-semibold uppercase mt-0.5">{user?.role || "Substation Engineer"}</span>
+                </div>
+              </div>
+
+              <button
+                onClick={handleLogout}
+                className="w-full py-2 px-3 rounded-lg bg-error/10 hover:bg-error/20 text-error font-bold text-xs flex items-center justify-between transition-colors cursor-pointer mt-1"
+              >
+                <span>Sign Out Account</span>
+                <LogOut size={15} />
+              </button>
+            </div>
+          )}
+        </div>
+
       </div>
     </header>
   );
