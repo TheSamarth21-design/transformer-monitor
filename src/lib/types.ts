@@ -13,6 +13,12 @@ export interface LiveReading {
   googleMapUrl?: string; // (V9)
   timestamp: string;
   isReplicatedData?: boolean; // True when AI predictive replicator fills in for hardware damage
+  sensorStatus?: {
+    voltage: "real" | "replicated";
+    current: "real" | "replicated";
+    temperature: "real" | "replicated";
+    humidity: "real" | "replicated";
+  };
 }
 
 export interface TransformerDevice {

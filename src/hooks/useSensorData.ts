@@ -41,6 +41,12 @@ export function useLiveReading(): LiveReading & { isHardwareOnline: boolean; isR
     googleMapUrl: `https://www.google.com/maps?q=${DEFAULT_LAT},${DEFAULT_LNG}`,
     timestamp: new Date().toISOString(),
     isReplicatedData: false,
+    sensorStatus: {
+      voltage: "real",
+      current: "real",
+      temperature: "real",
+      humidity: "real",
+    },
   });
 
   const [isHardwareOnline, setIsHardwareOnline] = useState<boolean>(false);
@@ -81,13 +87,14 @@ export function useLiveReading(): LiveReading & { isHardwareOnline: boolean; isR
           googleMapUrl: devData.googleMapUrl || `https://www.google.com/maps?q=${DEFAULT_LAT},${DEFAULT_LNG}`,
           timestamp: devData.lastUpdated ?? new Date().toISOString(),
           isReplicatedData: devData.isReplicatedData ?? false,
+          sensorStatus: devData.sensorStatus || prev.sensorStatus,
         }));
         setIsHardwareOnline(Boolean((devData.voltage || 0) > 0 || (devData.current || 0) > 0));
         setIsReplicatedData(Boolean(devData.isReplicatedData));
       }
     });
 
-    // 4. Blynk Hardware API Poller with AI Predictive Data Replicator Fallback
+    // 4. Blynk Hardware API Poller with Granular Per-Sensor AI Replicator
     let pollCount = 0;
     const blynkPoller = setInterval(async () => {
       try {
@@ -98,94 +105,94 @@ export function useLiveReading(): LiveReading & { isHardwareOnline: boolean; isR
         }
         const blynkData = await res.json();
 
-        const temp = parseFloat(blynkData.v0) || 0;
-        const hum = parseFloat(blynkData.v1) || 0;
-        const cur = parseFloat(blynkData.v2) || 0;
-        const volt = parseFloat(blynkData.v3) || 0;
+        const rawTemp = parseFloat(blynkData.v0) || 0;
+        const rawHum = parseFloat(blynkData.v1) || 0;
+        const rawCur = parseFloat(blynkData.v2) || 0;
+        const rawVolt = parseFloat(blynkData.v3) || 0;
         const rawLat = parseFloat(blynkData.v4) || 0;
         const rawLng = parseFloat(blynkData.v5) || 0;
         const lat = rawLat !== 0 ? rawLat : DEFAULT_LAT;
         const lng = rawLng !== 0 ? rawLng : DEFAULT_LNG;
         const relayVal = parseInt(blynkData.v6, 10);
         const relayState = relayVal === 1 ? "closed" : "tripped";
-        const health = String(blynkData.v7 || "ESP32 Hardware Nominal");
-        const alertMsg = String(blynkData.v8 || "");
 
-        const googleMapUrl = `https://www.google.com/maps?q=${lat},${lng}`;
-        const isRealHardwareData = Boolean(volt > 0 || cur > 0);
+        // Granular Per-Sensor Replication Logic
+        const isVoltOk = rawVolt > 0;
+        const isCurOk = rawCur > 0;
+        const isTempOk = rawTemp > 0;
+        const isHumOk = rawHum > 0;
 
-        if (isRealHardwareData) {
-          // REAL PHYSICAL ESP32 HARDWARE SENSOR DATA
-          const realReading: LiveReading = {
-            voltage: volt,
-            current: cur,
-            temperature: temp,
-            humidity: hum,
-            lat,
-            lng,
-            relayState,
-            health,
-            alertMsg,
-            googleMapUrl,
-            timestamp: new Date().toISOString(),
-            isReplicatedData: false,
-          };
+        const isAnySensorFailed = !isVoltOk || !isCurOk || !isTempOk || !isHumOk;
+        const isAllFailed = !isVoltOk && !isCurOk;
 
-          setReading(realReading);
-          setIsHardwareOnline(true);
-          setIsReplicatedData(false);
+        // Granular Replicated Values
+        const finalVolt = isVoltOk ? rawVolt : Number((119.5 + Math.sin(pollCount * 0.3) * 2.5).toFixed(1));
+        const finalCur = isCurOk ? rawCur : Number((0.85 + Math.cos(pollCount * 0.4) * 0.2).toFixed(1));
+        const finalTemp = isTempOk ? rawTemp : Number((28.4 + Math.sin(pollCount * 0.2) * 1.5).toFixed(1));
+        const finalHum = isHumOk ? rawHum : Number((62.0 + Math.cos(pollCount * 0.3) * 3.0).toFixed(1));
 
-          // Save real telemetry snapshot to Cloud Firestore (replaces predicted data)
-          saveTelemetryToFirestore(realReading).catch(() => {});
-        } else {
-          // HARDWARE FAULT / POWER LOSS DETECTED: Activate AI Predictive Data Replicator
-          const replicatedVolt = Number((118.5 + Math.sin(pollCount * 0.3) * 3.5).toFixed(1));
-          const replicatedCur = Number((0.85 + Math.cos(pollCount * 0.4) * 0.3).toFixed(1));
-          const replicatedTemp = Number((28.4 + Math.sin(pollCount * 0.2) * 2.0).toFixed(1));
-          const replicatedHum = Number((62.0 + Math.cos(pollCount * 0.3) * 4.0).toFixed(1));
+        const sensorStatus = {
+          voltage: isVoltOk ? ("real" as const) : ("replicated" as const),
+          current: isCurOk ? ("real" as const) : ("replicated" as const),
+          temperature: isTempOk ? ("real" as const) : ("replicated" as const),
+          humidity: isHumOk ? ("real" as const) : ("replicated" as const),
+        };
 
-          const predictedReading: LiveReading = {
-            voltage: replicatedVolt,
-            current: replicatedCur,
-            temperature: replicatedTemp,
-            humidity: replicatedHum,
-            lat: DEFAULT_LAT,
-            lng: DEFAULT_LNG,
-            relayState: "closed",
-            health: "AI Predictive Data Replication Active (Hardware Offline)",
-            alertMsg: "⚠️ ESP Hardware Fault Detected - AI Data Replicator Engine Active",
-            googleMapUrl: `https://www.google.com/maps?q=${DEFAULT_LAT},${DEFAULT_LNG}`,
-            timestamp: new Date().toISOString(),
-            isReplicatedData: true,
-          };
-
-          setReading(predictedReading);
-          setIsHardwareOnline(true); // Shows app online via failover
-          setIsReplicatedData(true);
-
-          // Sync AI predicted telemetry snapshot to Cloud Firestore so Firebase stream is uninterrupted
-          saveTelemetryToFirestore(predictedReading).catch(() => {});
+        // Construct Technician Warning Message for Sensor Faults
+        let alertMsg = String(blynkData.v8 || "");
+        if (isAllFailed) {
+          alertMsg = "🚨 CRITICAL: ESP32 Hardware Damaged / Offline. Full AI Data Replicator Active.";
+        } else if (!isVoltOk) {
+          alertMsg = "⚠️ VOLTAGE SENSOR FAULT: ZMPT101B failed. AI Replicator active for Voltage.";
+        } else if (!isCurOk) {
+          alertMsg = "⚠️ CURRENT SENSOR FAULT: ACS712 failed. AI Replicator active for Current.";
+        } else if (!isTempOk) {
+          alertMsg = "⚠️ THERMAL SENSOR FAULT: DHT11 temperature sensor disconnected.";
         }
-      } catch {
-        // Network / Hardware Failure Fallback: Activate AI Predictive Replicator
-        const replicatedVolt = 119.2;
-        const replicatedCur = 0.8;
-        const replicatedTemp = 28.0;
-        const replicatedHum = 64.0;
 
+        const telemetryData: LiveReading = {
+          voltage: finalVolt,
+          current: finalCur,
+          temperature: finalTemp,
+          humidity: finalHum,
+          lat,
+          lng,
+          relayState,
+          health: isAnySensorFailed ? "Sensor Fault - AI Replicator Engaged" : String(blynkData.v7 || "Hardware Online"),
+          alertMsg,
+          googleMapUrl: `https://www.google.com/maps?q=${lat},${lng}`,
+          timestamp: new Date().toISOString(),
+          isReplicatedData: isAnySensorFailed,
+          sensorStatus,
+        };
+
+        setReading(telemetryData);
+        setIsHardwareOnline(true);
+        setIsReplicatedData(isAnySensorFailed);
+
+        // Sync snapshot to Cloud Firestore (with real/replicated tags)
+        saveTelemetryToFirestore(telemetryData).catch(() => {});
+      } catch {
+        // Complete Connection Failure Fallback
         const predictedReading: LiveReading = {
-          voltage: replicatedVolt,
-          current: replicatedCur,
-          temperature: replicatedTemp,
-          humidity: replicatedHum,
+          voltage: 119.5,
+          current: 0.85,
+          temperature: 28.4,
+          humidity: 62.0,
           lat: DEFAULT_LAT,
           lng: DEFAULT_LNG,
           relayState: "closed",
           health: "AI Predictive Data Replication Active (Hardware Offline)",
-          alertMsg: "⚠️ ESP Hardware Fault Detected - AI Data Replicator Engine Active",
+          alertMsg: "🚨 CRITICAL: ESP32 Board Disconnected. AI Predictive Replicator Active.",
           googleMapUrl: `https://www.google.com/maps?q=${DEFAULT_LAT},${DEFAULT_LNG}`,
           timestamp: new Date().toISOString(),
           isReplicatedData: true,
+          sensorStatus: {
+            voltage: "replicated",
+            current: "replicated",
+            temperature: "replicated",
+            humidity: "replicated",
+          },
         };
 
         setReading(predictedReading);
