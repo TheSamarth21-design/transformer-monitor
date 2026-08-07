@@ -3,6 +3,7 @@ import { FileDown, FileSpreadsheet, Printer } from "lucide-react";
 import { useHistory, useRelayEvents } from "@/hooks/useSensorData";
 import { useLanguage } from "@/context/LanguageContext";
 import { cn } from "@/lib/utils";
+import { PredictiveAnalyticsCard } from "@/components/PredictiveAnalyticsCard";
 
 const REPORT_TYPES = ["Daily", "Weekly", "Monthly"] as const;
 type ReportType = (typeof REPORT_TYPES)[number];
@@ -35,13 +36,16 @@ export default function Reports() {
     <div className="flex flex-col gap-lg">
       <h1 className="text-headline-lg text-on-surface">{t("reports.title")}</h1>
 
+      {/* Predictive Maintenance Analytics */}
+      <PredictiveAnalyticsCard />
+
       <div className="flex gap-sm">
         {REPORT_TYPES.map((type) => (
           <button
             key={type}
             onClick={() => setReportType(type)}
             className={cn(
-              "flex-1 rounded border p-md text-left",
+              "flex-1 rounded border p-md text-left cursor-pointer",
               reportType === type
                 ? "border-primary bg-primary-container/10"
                 : "border-outline-variant hover:bg-surface-container"
@@ -61,13 +65,13 @@ export default function Reports() {
             {typeLabels[reportType]} {t("reports.summary")}
           </h2>
           <div className="flex gap-2">
-            <button className="h-8 px-sm rounded border border-outline-variant text-body-sm text-on-surface flex items-center gap-1 hover:bg-surface-container">
+            <button className="h-8 px-sm rounded border border-outline-variant text-body-sm text-on-surface flex items-center gap-1 hover:bg-surface-container cursor-pointer">
               <FileDown size={14} /> {t("reports.pdf")}
             </button>
-            <button className="h-8 px-sm rounded border border-outline-variant text-body-sm text-on-surface flex items-center gap-1 hover:bg-surface-container">
+            <button className="h-8 px-sm rounded border border-outline-variant text-body-sm text-on-surface flex items-center gap-1 hover:bg-surface-container cursor-pointer">
               <FileSpreadsheet size={14} /> {t("reports.csv")}
             </button>
-            <button className="h-8 px-sm rounded border border-outline-variant text-body-sm text-on-surface flex items-center gap-1 hover:bg-surface-container">
+            <button className="h-8 px-sm rounded border border-outline-variant text-body-sm text-on-surface flex items-center gap-1 hover:bg-surface-container cursor-pointer">
               <Printer size={14} /> {t("reports.print")}
             </button>
           </div>

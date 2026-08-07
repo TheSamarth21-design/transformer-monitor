@@ -7,6 +7,8 @@ import bcrypt from "bcryptjs";
 import { initDb, run, get, all } from "./db.js";
 import { processTelemetryProtection } from "./protectionEngine.js";
 import { startBlynkPoller, setBlynkRelayState, pollBlynkCloud } from "./blynk.js";
+import { initFirebase, syncTelemetryToFirestore, syncAlertToFirestore, syncRelayEventToFirestore } from "./firebase.js";
+import { processMlPredictiveAnalysis } from "./mlEngine.js";
 
 const JWT_SECRET = process.env.JWT_SECRET || "transformer-secret-key-2026";
 const PORT = process.env.PORT || 5000;
@@ -59,6 +61,27 @@ app.get("/api/health", (req, res) => {
   res.json({ status: "ok", timestamp: new Date().toISOString() });
 });
 
+// ML Predictive Maintenance Endpoint
+app.get("/api/analytics/predictive", async (req, res) => {
+  try {
+    const latest = await get(`SELECT voltage, current, temperature, humidity, timestamp FROM telemetry ORDER BY id DESC LIMIT 1`);
+    const history = await all(`SELECT voltage, current, temperature, humidity, timestamp FROM telemetry ORDER BY id DESC LIMIT 20`);
+    
+    const reading = latest || {
+      voltage: 231,
+      current: 1.2,
+      temperature: 48,
+      humidity: 46,
+      timestamp: new Date().toISOString(),
+    };
+
+    const mlAnalysis = processMlPredictiveAnalysis(reading, history);
+    res.json(mlAnalysis);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // Blynk Config Routes
 app.get("/api/blynk/config", async (req, res) => {
   try {
@@ -73,7 +96,6 @@ app.post("/api/blynk/config", async (req, res) => {
   try {
     const { authToken } = req.body;
     await run(`UPDATE settings SET blynk_auth_token = ? WHERE id = ?`, [authToken || "", "settings-1"]);
-    // Trigger immediate poll
     pollBlynkCloud(broadcast);
     res.json({ success: true, authToken });
   } catch (err) {
@@ -81,24 +103,15 @@ app.post("/api/blynk/config", async (req, res) => {
   }
 });
 
-// Trigger Test 2A Overload Emergency Alert Route (for testing/demo)
+// Trigger Test 2A Overload Emergency Alert Route
 app.post("/api/test-emergency-alert", async (req, res) => {
   try {
     const now = new Date().toISOString();
     const alertId = `al-${Date.now()}`;
     const device = await get(`SELECT * FROM device WHERE id = ?`, ["TR-0042"]);
 
-    const testReading = {
-      voltage: 231,
-      current: 3.5, // 3.5A > 2.0A threshold!
-      temperature: 64,
-      humidity: 48,
-      timestamp: now,
-    };
-
     const tripReason = "Over-current Overload (3.5A > 2.0A safety limit)";
 
-    // Update relay state
     await run(`UPDATE relay_status SET state = ?, last_trip_reason = ?, last_trip_at = ? WHERE id = ?`, [
       "tripped",
       tripReason,
@@ -106,28 +119,31 @@ app.post("/api/test-emergency-alert", async (req, res) => {
       "relay-1",
     ]);
 
-    // Insert critical emergency alert record
+    const newAlert = {
+      id: alertId,
+      severity: "critical",
+      title: "⚡ CRITICAL EMERGENCY: Transformer Overload Detected",
+      description: `Over-current overload detected on ${device?.name || "Distribution Transformer 42"}: ${tripReason}`,
+      timestamp: now,
+      status: "active",
+    };
+
     await run(
       `INSERT INTO alerts (id, severity, title, description, timestamp, status) VALUES (?, ?, ?, ?, ?, ?)`,
-      [
-        alertId,
-        "critical",
-        "⚡ CRITICAL EMERGENCY: Transformer Overload Detected",
-        `Over-current overload detected on ${device?.name || "Distribution Transformer 42"}: ${tripReason}`,
-        now,
-        "active",
-      ]
+      [alertId, newAlert.severity, newAlert.title, newAlert.description, now, "active"]
     );
 
     await run(`UPDATE device SET status = ? WHERE id = ?`, ["critical", "TR-0042"]);
 
-    // Broadcast full emergency diagnostic payload to all WebSocket clients
+    // Sync alert to Firestore
+    syncAlertToFirestore(newAlert);
+
     broadcast({
       type: "EMERGENCY_POPUP_ALERT",
       data: {
         alertId,
         deviceId: device?.id || "TR-0042",
-        deviceName: device?.name || "Distribution Transformer 42",
+        deviceName: device?.name || "Smart Transformer",
         location: device?.location || "Sector 4B, Pimpri-Chinchwad",
         lat: device?.lat || 18.6298,
         lng: device?.lng || 73.8131,
@@ -278,11 +294,23 @@ app.post("/api/telemetry", async (req, res) => {
     );
 
     const reading = { voltage, current, temperature, humidity, timestamp };
+    const mlAnalysis = processMlPredictiveAnalysis(reading);
+
+    // Sync to Firestore Cloud Storage
+    syncTelemetryToFirestore(reading);
+
     const protectionResult = await processTelemetryProtection(reading, broadcast);
     await run(`UPDATE device SET online = 1, last_updated = ? WHERE id = ?`, [timestamp, "TR-0042"]);
 
-    broadcast({ type: "LIVE_READING", data: reading });
-    res.json({ success: true, reading, protectionResult });
+    broadcast({
+      type: "LIVE_READING",
+      data: {
+        ...reading,
+        mlAnalysis,
+      },
+    });
+
+    res.json({ success: true, reading, mlAnalysis, protectionResult });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -291,24 +319,25 @@ app.post("/api/telemetry", async (req, res) => {
 app.get("/api/telemetry/live", async (req, res) => {
   try {
     const latest = await get(`SELECT voltage, current, temperature, humidity, timestamp FROM telemetry ORDER BY id DESC LIMIT 1`);
+    const history = await all(`SELECT voltage, current, temperature, humidity, timestamp FROM telemetry ORDER BY id DESC LIMIT 20`);
     const dev = await get(`SELECT * FROM device WHERE id = ?`, ["TR-0042"]);
-    if (!latest) {
-      return res.json({
-        voltage: 230,
-        current: 1.2,
-        temperature: 48,
-        humidity: 46,
-        timestamp: new Date().toISOString(),
-        lat: dev?.lat || 18.6298,
-        lng: dev?.lng || 73.8131,
-        googleMapUrl: dev?.google_maps_link,
-      });
-    }
+
+    const reading = latest || {
+      voltage: 230,
+      current: 1.2,
+      temperature: 48,
+      humidity: 46,
+      timestamp: new Date().toISOString(),
+    };
+
+    const mlAnalysis = processMlPredictiveAnalysis(reading, history);
+
     res.json({
-      ...latest,
+      ...reading,
       lat: dev?.lat || 18.6298,
       lng: dev?.lng || 73.8131,
       googleMapUrl: dev?.google_maps_link,
+      mlAnalysis,
     });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -362,7 +391,7 @@ app.get("/api/relay/status", async (req, res) => {
       lastTripAt: relay.last_trip_at,
       thresholds: {
         maxTemperature: relay.max_temperature,
-        maxCurrent: relay.max_current || 2.0, // 2A threshold
+        maxCurrent: relay.max_current || 2.0,
         maxVoltage: relay.max_voltage,
       },
     });
@@ -384,15 +413,18 @@ app.post("/api/relay/trip", async (req, res) => {
       "relay-1",
     ]);
 
-    // Send V6=0 to Blynk Cloud
     setBlynkRelayState("tripped");
 
+    const event = { id: eventId, timestamp: now, cause: reason, durationMinutes: 0 };
     await run(`INSERT INTO relay_events (id, timestamp, cause, duration_minutes) VALUES (?, ?, ?, ?)`, [
       eventId,
       now,
       reason,
       0,
     ]);
+
+    // Sync to Firestore
+    syncRelayEventToFirestore(event);
 
     await run(`UPDATE device SET status = ? WHERE id = ?`, ["critical", "TR-0042"]);
 
@@ -410,7 +442,6 @@ app.post("/api/relay/reset", async (req, res) => {
     await run(`UPDATE relay_status SET state = ? WHERE id = ?`, ["closed", "relay-1"]);
     await run(`UPDATE device SET status = ? WHERE id = ?`, ["normal", "TR-0042"]);
 
-    // Send V6=1 to Blynk Cloud to close hardware relay
     setBlynkRelayState("closed");
 
     const lastEvent = await get(`SELECT * FROM relay_events ORDER BY rowid DESC LIMIT 1`);
@@ -481,12 +512,14 @@ app.post("/api/alerts", async (req, res) => {
     const id = `al-${Date.now()}`;
     const timestamp = new Date().toISOString();
 
+    const newAlert = { id, severity: severity || "info", title, description, timestamp, status: "active" };
+
     await run(
       `INSERT INTO alerts (id, severity, title, description, timestamp, status) VALUES (?, ?, ?, ?, ?, ?)`,
-      [id, severity || "info", title, description, timestamp, "active"]
+      [id, newAlert.severity, title, description, timestamp, "active"]
     );
 
-    const newAlert = { id, severity: severity || "info", title, description, timestamp, status: "active" };
+    syncAlertToFirestore(newAlert);
     broadcast({ type: "NEW_ALERT", data: newAlert });
     res.json(newAlert);
   } catch (err) {
@@ -500,6 +533,7 @@ app.patch("/api/alerts/:id", async (req, res) => {
     const { id } = req.params;
     await run(`UPDATE alerts SET status = ? WHERE id = ?`, [status, id]);
     const updated = await get(`SELECT * FROM alerts WHERE id = ?`, [id]);
+    if (updated) syncAlertToFirestore(updated);
     broadcast({ type: "ALERT_UPDATED", data: updated });
     res.json(updated);
   } catch (err) {
@@ -588,14 +622,16 @@ app.patch("/api/settings", async (req, res) => {
   }
 });
 
-// Initialize DB and start HTTP, WS, and Blynk Poller
+// Initialize DB, Firebase, HTTP Server, WebSockets and Blynk Poller
 initDb()
   .then(() => {
+    initFirebase();
     server.listen(PORT, () => {
       console.log(`===================================================`);
       console.log(` Transformer Monitor Backend Server Running!`);
-      console.log(` REST API:   http://localhost:${PORT}/api/health`);
-      console.log(` WebSocket:  ws://localhost:${PORT}/ws`);
+      console.log(` REST API:    http://localhost:${PORT}/api/health`);
+      console.log(` ML Engine:   http://localhost:${PORT}/api/analytics/predictive`);
+      console.log(` WebSocket:   ws://localhost:${PORT}/ws`);
       console.log(`===================================================`);
       startBlynkPoller(broadcast);
     });

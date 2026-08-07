@@ -3,6 +3,7 @@ import { MetricTile } from "@/components/MetricTile";
 import { StatusBadge } from "@/components/StatusBadge";
 import { useAlerts, useDevice, useLiveReading, useRelayStatus } from "@/hooks/useSensorData";
 import { useLanguage } from "@/context/LanguageContext";
+import { PredictiveAnalyticsCard } from "@/components/PredictiveAnalyticsCard";
 
 export default function Dashboard() {
   const device = useDevice();
@@ -27,9 +28,12 @@ export default function Dashboard() {
         </div>
       </div>
 
+      {/* Machine Learning Predictive Maintenance Card */}
+      <PredictiveAnalyticsCard />
+
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-md">
         <MetricTile label={t("dashboard.voltage")} value={reading.voltage.toFixed(0)} unit="V" icon={Zap} status="normal" />
-        <MetricTile label={t("dashboard.current")} value={reading.current.toFixed(0)} unit="A" icon={Gauge} status="warning" />
+        <MetricTile label={t("dashboard.current")} value={reading.current.toFixed(1)} unit="A" icon={Gauge} status={reading.current > 2.0 ? "critical" : "normal"} />
         <MetricTile
           label={t("dashboard.temperature")}
           value={reading.temperature.toFixed(0)}
