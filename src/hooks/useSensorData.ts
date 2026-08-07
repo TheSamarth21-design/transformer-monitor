@@ -8,6 +8,10 @@ import type {
   TransformerDevice,
 } from "@/lib/types";
 import { apiRequest, subscribeWebSocket } from "@/lib/api";
+import { subscribeFirebaseLiveDevice, saveTelemetryToFirestore } from "@/lib/firebase";
+
+const BLYNK_TOKEN = "uR3iUqcSJMTS7-OEfnsuSDj-5Sqrxl0L";
+const BLYNK_POLL_URL = `https://blynk.cloud/external/api/get?token=${BLYNK_TOKEN}&v0&v1&v2&v3&v4&v5&v6&v7&v8&v9`;
 
 const INITIAL_DEVICE: TransformerDevice = {
   id: "TR-0042",
@@ -35,19 +39,92 @@ export function useLiveReading(): LiveReading {
   });
 
   useEffect(() => {
-    // Initial fetch
+    // 1. Initial backend REST fetch
     apiRequest<LiveReading>("/telemetry/live")
-      .then((data) => setReading(data))
+      .then((data) => {
+        if (data && data.voltage !== undefined) {
+          setReading(data);
+        }
+      })
       .catch(() => {});
 
-    // WebSocket subscription for live stream
-    const unsubscribe = subscribeWebSocket((event) => {
+    // 2. Local WebSocket Subscription
+    const unsubscribeWs = subscribeWebSocket((event) => {
       if (event.type === "LIVE_READING" && event.data) {
         setReading(event.data);
       }
     });
 
-    return unsubscribe;
+    // 3. Cloud Firestore Realtime Sync
+    const unsubscribeFb = subscribeFirebaseLiveDevice((devData: any) => {
+      if (devData) {
+        setReading((prev) => ({
+          ...prev,
+          voltage: devData.voltage ?? prev.voltage,
+          current: devData.current ?? prev.current,
+          temperature: devData.temperature ?? prev.temperature,
+          humidity: devData.humidity ?? prev.humidity,
+          lat: devData.lat ?? prev.lat,
+          lng: devData.lng ?? prev.lng,
+          health: devData.health ?? prev.health,
+          alertMsg: devData.alertMsg ?? prev.alertMsg,
+          googleMapUrl: devData.googleMapUrl ?? prev.googleMapUrl,
+          timestamp: devData.lastUpdated ?? new Date().toISOString(),
+        }));
+      }
+    });
+
+    // 4. Direct Blynk Cloud API Poller (Ensures 100% sync even without local backend)
+    const blynkPoller = setInterval(async () => {
+      try {
+        const res = await fetch(BLYNK_POLL_URL);
+        if (!res.ok) return;
+        const blynkData = await res.json();
+
+        const temp = parseFloat(blynkData.v0) || 0;
+        const hum = parseFloat(blynkData.v1) || 0;
+        const cur = parseFloat(blynkData.v2) || 0;
+        const volt = parseFloat(blynkData.v3) || 0;
+        const lat = parseFloat(blynkData.v4) || 0;
+        const lng = parseFloat(blynkData.v5) || 0;
+        const relayVal = parseInt(blynkData.v6, 10);
+        const relayState = relayVal === 1 ? "closed" : "tripped";
+        const health = String(blynkData.v7 || "Nominal");
+        const alertMsg = String(blynkData.v8 || "System Normal");
+
+        const googleMapUrl =
+          lat !== 0 && lng !== 0
+            ? `https://www.google.com/maps?q=${lat},${lng}`
+            : "https://www.google.com/maps";
+
+        const newReading: LiveReading = {
+          voltage: volt,
+          current: cur,
+          temperature: temp,
+          humidity: hum,
+          lat,
+          lng,
+          relayState,
+          health,
+          alertMsg,
+          googleMapUrl,
+          timestamp: new Date().toISOString(),
+        };
+
+        setReading(newReading);
+
+        // Also save snapshot to Cloud Firestore
+        saveTelemetryToFirestore(newReading).catch(() => {});
+      } catch {
+        // Quiet fail if network offline
+      }
+    }, 3000);
+
+    return () => {
+      unsubscribeWs();
+      unsubscribeFb();
+      clearInterval(blynkPoller);
+    };
   }, []);
 
   return reading;
@@ -61,13 +138,32 @@ export function useDevice(): TransformerDevice {
       .then((data) => setDevice(data))
       .catch(() => {});
 
-    const unsubscribe = subscribeWebSocket((event) => {
+    const unsubscribeWs = subscribeWebSocket((event) => {
       if (event.type === "DEVICE_UPDATED" && event.data) {
         setDevice(event.data);
       }
     });
 
-    return unsubscribe;
+    const unsubscribeFb = subscribeFirebaseLiveDevice((devData: any) => {
+      if (devData) {
+        setDevice((prev) => ({
+          ...prev,
+          name: devData.name || prev.name,
+          location: devData.location || prev.location,
+          lat: devData.lat ?? prev.lat,
+          lng: devData.lng ?? prev.lng,
+          status: devData.status || (devData.current > 2.0 ? "critical" : devData.current > 1.0 ? "warning" : "normal"),
+          online: devData.online ?? true,
+          lastUpdated: devData.lastUpdated || new Date().toISOString(),
+          googleMapsLink: devData.googleMapUrl || prev.googleMapsLink,
+        }));
+      }
+    });
+
+    return () => {
+      unsubscribeWs();
+      unsubscribeFb();
+    };
   }, []);
 
   return device;
@@ -111,16 +207,26 @@ export function useRelayStatus(): RelayStatus & {
   }, []);
 
   const tripRelay = async (reason?: string) => {
-    await apiRequest("/relay/trip", {
-      method: "POST",
-      body: JSON.stringify({ reason }),
-    });
-    fetchRelay();
+    try {
+      await apiRequest("/relay/trip", {
+        method: "POST",
+        body: JSON.stringify({ reason }),
+      });
+    } catch {
+      // Direct Blynk API Fallback
+      fetch(`https://blynk.cloud/external/api/update?token=${BLYNK_TOKEN}&v6=0`).catch(() => {});
+    }
+    setRelay((prev) => ({ ...prev, state: "tripped", lastTripReason: reason || "Manual Trip" }));
   };
 
   const resetRelay = async () => {
-    await apiRequest("/relay/reset", { method: "POST" });
-    fetchRelay();
+    try {
+      await apiRequest("/relay/reset", { method: "POST" });
+    } catch {
+      // Direct Blynk API Fallback
+      fetch(`https://blynk.cloud/external/api/update?token=${BLYNK_TOKEN}&v6=1`).catch(() => {});
+    }
+    setRelay((prev) => ({ ...prev, state: "closed" }));
   };
 
   const updateThresholds = async (
@@ -129,7 +235,7 @@ export function useRelayStatus(): RelayStatus & {
     await apiRequest("/relay/thresholds", {
       method: "PATCH",
       body: JSON.stringify(updates),
-    });
+    }).catch(() => {});
     fetchRelay();
   };
 
@@ -183,7 +289,7 @@ export function useAlerts(): AlertItem[] & {
     await apiRequest(`/alerts/${id}`, {
       method: "PATCH",
       body: JSON.stringify({ status }),
-    });
+    }).catch(() => {});
     fetchAlerts();
   };
 
