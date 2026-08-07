@@ -46,7 +46,7 @@ export function EmergencyAlertModal() {
           playEmergencyAlarmSound(10); // Play 10-second siren
         }
       } else if (event.type === "RELAY_TRIPPED" && event.data) {
-        const cause = event.data.reason || "Over-current Overload (Exceeded 2.0A limit)";
+        const cause = event.data.reason || "Over-current Overload (Exceeded 1.5A limit)";
         const key = event.data.timestamp || cause;
         if (!dismissedKeys.has(key)) {
           setAlertData({
@@ -55,11 +55,11 @@ export function EmergencyAlertModal() {
             location: "Sector 4B, Pimpri-Chinchwad",
             lat: 18.6298,
             lng: 73.8131,
-            googleMapUrl: `https://maps.google.com/?q=18.6298,73.8131`,
+            googleMapUrl: `https://www.google.com/maps?q=18.6298,73.8131`,
             cause,
             timestamp: event.data.timestamp || new Date().toISOString(),
             voltage: 231,
-            current: 3.5, // > 2A threshold
+            current: 2.8, // > 1.5A threshold
             temperature: 64,
             humidity: 48,
             relayState: "tripped",
@@ -68,8 +68,8 @@ export function EmergencyAlertModal() {
           playEmergencyAlarmSound(10); // Play 10-second siren
         }
       } else if (event.type === "LIVE_READING" && event.data) {
-        // Check if load current exceeds 2A threshold automatically
-        if (event.data.current > 2.0) {
+        // Check if load current exceeds 1.5A threshold automatically
+        if (event.data.current > 1.5) {
           const key = `current-overload-${event.data.relayState}`;
           if (!dismissedKeys.has(key) && alertData === null) {
             setAlertData({
@@ -78,8 +78,10 @@ export function EmergencyAlertModal() {
               location: "Sector 4B, Pimpri-Chinchwad",
               lat: event.data.lat || 18.6298,
               lng: event.data.lng || 73.8131,
-              googleMapUrl: event.data.googleMapUrl || `https://maps.google.com/?q=${event.data.lat || 18.6298},${event.data.lng || 73.8131}`,
-              cause: `Over-current Overload (${event.data.current.toFixed(1)}A > 2.0A safety threshold limit)`,
+              googleMapUrl: (event.data.googleMapUrl && event.data.googleMapUrl.startsWith("http"))
+                ? event.data.googleMapUrl
+                : `https://www.google.com/maps?q=${event.data.lat || 18.6298},${event.data.lng || 73.8131}`,
+              cause: `Over-current Overload (${event.data.current.toFixed(1)}A > 1.5A safety threshold limit)`,
               timestamp: event.data.timestamp || new Date().toISOString(),
               voltage: event.data.voltage,
               current: event.data.current,
@@ -130,9 +132,10 @@ export function EmergencyAlertModal() {
     dismissCurrentAlert();
   };
 
-  const mapLink =
-    alertData.googleMapUrl ||
-    `https://maps.google.com/?q=${alertData.lat},${alertData.lng}`;
+  const rawUrl = alertData.googleMapUrl;
+  const mapLink = (rawUrl && rawUrl.startsWith("http"))
+    ? rawUrl
+    : `https://www.google.com/maps?q=${(alertData.lat && alertData.lat !== 0) ? alertData.lat : 18.6298},${(alertData.lng && alertData.lng !== 0) ? alertData.lng : 73.8131}`;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md p-4 animate-in fade-in duration-200">
@@ -221,7 +224,7 @@ export function EmergencyAlertModal() {
               <span className="text-lg font-bold font-mono text-error">
                 {alertData.current.toFixed(1)} A
               </span>
-              <span className="text-[10px] text-error font-semibold">Exceeds 2.0A Limit</span>
+              <span className="text-[10px] text-error font-semibold">Exceeds 1.5A Limit</span>
             </div>
             <div className="bg-white/5 border border-white/10 rounded-xl p-3 flex flex-col">
               <span className="text-xs text-white/60 uppercase">Temperature</span>

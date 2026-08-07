@@ -73,7 +73,7 @@ export default function Dashboard() {
       {/* Live Telemetry Metrics Grid */}
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-md">
         <MetricTile label={t("dashboard.voltage")} value={reading.voltage.toFixed(1)} unit="V" icon={Zap} status="normal" />
-        <MetricTile label={t("dashboard.current")} value={reading.current.toFixed(1)} unit="A" icon={Gauge} status={reading.current > 2.0 ? "critical" : "normal"} />
+        <MetricTile label={t("dashboard.current")} value={reading.current.toFixed(1)} unit="A" icon={Gauge} status={reading.current > 1.5 ? "critical" : "normal"} />
         <MetricTile
           label={t("dashboard.temperature")}
           value={reading.temperature.toFixed(1)}

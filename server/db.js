@@ -156,14 +156,18 @@ export async function initDb() {
         "normal",
         1,
         new Date().toISOString(),
-        "https://maps.google.com/?q=18.6298,73.8131",
+        "https://www.google.com/maps?q=18.6298,73.8131",
       ]
     );
   } else {
-    await run(`UPDATE device SET name = ? WHERE id = ?`, [DEFAULT_TEMPLATE_NAME, "TR-0042"]);
+    await run(`UPDATE device SET name = ?, google_maps_link = ? WHERE id = ?`, [
+      DEFAULT_TEMPLATE_NAME,
+      "https://www.google.com/maps?q=18.6298,73.8131",
+      "TR-0042",
+    ]);
   }
 
-  // Seed default relay status with 2A max_current threshold
+  // Seed default relay status with 1.5A max_current threshold
   const existingRelay = await get(`SELECT * FROM relay_status WHERE id = ?`, ["relay-1"]);
   if (!existingRelay) {
     await run(
@@ -173,15 +177,15 @@ export async function initDb() {
         "relay-1",
         "closed",
         1,
-        "Over-current (3.5A)",
+        "Over-current (2.8A)",
         new Date(Date.now() - 1000 * 60 * 60 * 26).toISOString(),
         90,
-        2.0, // 2A threshold
+        1.5, // 1.5A threshold limit
         260,
       ]
     );
   } else {
-    await run(`UPDATE relay_status SET max_current = ? WHERE id = ?`, [2.0, "relay-1"]);
+    await run(`UPDATE relay_status SET max_current = ? WHERE id = ?`, [1.5, "relay-1"]);
   }
 
   // Seed settings with user's Blynk Auth Token
@@ -195,7 +199,7 @@ export async function initDb() {
     await run(`UPDATE settings SET blynk_auth_token = ? WHERE id = ?`, [DEFAULT_BLYNK_TOKEN, "settings-1"]);
   }
 
-  console.log(`[SQLite] Database initialized with Blynk Template '${DEFAULT_TEMPLATE_NAME}' & Auth Token.`);
+  console.log(`[SQLite] Database initialized with Blynk Template '${DEFAULT_TEMPLATE_NAME}' & 1.5A Limit.`);
 }
 
 export default db;

@@ -8,7 +8,7 @@ export async function processTelemetryProtection(telemetry, broadcastWs, blynkTo
     if (!relay) return;
 
     const { voltage, current, temperature, humidity } = telemetry;
-    const maxCurrentLimit = relay.max_current || 2.0; // 2A threshold
+    const maxCurrentLimit = relay.max_current || 1.5; // 1.5A safety threshold limit
     let tripReason = null;
 
     if (current > maxCurrentLimit) {
@@ -65,6 +65,10 @@ export async function processTelemetryProtection(telemetry, broadcastWs, blynkTo
 
       trippedNow = true;
 
+      const mapUrl = (device?.google_maps_link && device.google_maps_link.startsWith("http"))
+        ? device.google_maps_link
+        : `https://www.google.com/maps?q=${device?.lat || 18.6298},${device?.lng || 73.8131}`;
+
       // Broadcast full emergency diagnostic payload via WebSockets
       if (broadcastWs) {
         broadcastWs({
@@ -76,7 +80,7 @@ export async function processTelemetryProtection(telemetry, broadcastWs, blynkTo
             location: device?.location || "Sector 4B, Pimpri-Chinchwad",
             lat: device?.lat || 18.6298,
             lng: device?.lng || 73.8131,
-            googleMapUrl: device?.google_maps_link || `https://maps.google.com/?q=${device?.lat},${device?.lng}`,
+            googleMapUrl: mapUrl,
             cause: tripReason,
             timestamp: now,
             voltage,

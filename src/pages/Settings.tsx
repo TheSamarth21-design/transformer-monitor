@@ -95,7 +95,7 @@ export default function Settings() {
           <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs text-on-surface-variant">
             <div><span className="text-primary font-bold">•</span> Temperature (°C)</div>
             <div><span className="text-primary font-bold">•</span> Humidity (%)</div>
-            <div><span className="text-primary font-bold">•</span> Load Current (2A Safety Limit)</div>
+            <div><span className="text-primary font-bold">•</span> Load Current (1.5A Safety Limit)</div>
             <div><span className="text-primary font-bold">•</span> Voltage (V)</div>
             <div><span className="text-primary font-bold">•</span> Latitude & Longitude</div>
             <div><span className="text-primary font-bold">•</span> Relay Interlock Control</div>

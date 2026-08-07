@@ -27,8 +27,8 @@ export function processMlPredictiveAnalysis(currentReading, historyPoints = []) 
       tempSlope = (newest.temperature - oldest.temperature) / timeDiffMinutes;
     }
 
-    // 2. Calculate Load Current Ratio against 2A Limit
-    const MAX_CURRENT_LIMIT = 2.0; // 2A limit as configured
+    // 2. Calculate Load Current Ratio against 1.5A Limit
+    const MAX_CURRENT_LIMIT = 1.5; // 1.5A limit as configured
     const loadCurrentRatio = current / MAX_CURRENT_LIMIT; // 1.0 = 100% load
 
     // 3. Calculate Voltage Stability Variance
@@ -43,7 +43,7 @@ export function processMlPredictiveAnalysis(currentReading, historyPoints = []) 
     // 4. ML Health Index Calculation (0 - 100%)
     let healthPenalty = 0;
 
-    // Load Penalty (exponential penalty if current approaches or exceeds 2A)
+    // Load Penalty (exponential penalty if current approaches or exceeds 1.5A)
     if (loadCurrentRatio > 1.0) {
       healthPenalty += 60 + (loadCurrentRatio - 1.0) * 80;
     } else if (loadCurrentRatio > 0.85) {
@@ -88,11 +88,11 @@ export function processMlPredictiveAnalysis(currentReading, historyPoints = []) 
 
     if (loadCurrentRatio > 1.0) {
       failureMode = "Immediate Overload Fault";
-      recommendedAction = "CRITICAL: Load exceeds 2A limit! Relay trip sequence engaged.";
+      recommendedAction = "CRITICAL: Load exceeds 1.5A safety limit! Relay trip sequence engaged.";
       estimatedRul = "< 1 Minute";
     } else if (loadCurrentRatio > 0.85) {
       failureMode = "Overload Thermal Risk";
-      recommendedAction = "WARNING: Load at 85%+ of 2A limit. Reduce feeder load to avoid trip.";
+      recommendedAction = "WARNING: Load at 85%+ of 1.5A limit. Reduce feeder load to avoid trip.";
       estimatedRul = "25 - 40 Minutes";
     } else if (tempSlope > 0.8 || temperature > 80) {
       failureMode = "Thermal Runaway Degradation";

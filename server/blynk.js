@@ -47,14 +47,19 @@ export async function pollBlynkCloud(broadcastWs) {
       const current = parseFloat(data.v2 ?? data.V2 ?? 0);
       const voltage = parseFloat(data.v3 ?? data.V3 ?? 0);
 
-      const lat = parseFloat(data.v4 ?? data.V4 ?? 18.6298);
-      const lng = parseFloat(data.v5 ?? data.V5 ?? 73.8131);
+      let lat = parseFloat(data.v4 ?? data.V4 ?? 18.6298);
+      let lng = parseFloat(data.v5 ?? data.V5 ?? 73.8131);
+      if (!lat || lat === 0) lat = 18.6298;
+      if (!lng || lng === 0) lng = 73.8131;
+
       const relayPin = parseInt(data.v6 ?? data.V6 ?? 1, 10); // 1 = closed, 0 = tripped
       const health = String(data.v7 ?? data.V7 ?? "normal");
       const alertMsg = String(data.v8 ?? data.V8 ?? "");
-      const googleMapUrl = String(
-        data.v9 ?? data.V9 ?? `https://maps.google.com/?q=${lat},${lng}`
-      );
+      const rawMapUrl = String(data.v9 ?? data.V9 ?? "");
+      
+      const googleMapUrl = rawMapUrl.startsWith("http")
+        ? rawMapUrl
+        : `https://www.google.com/maps?q=${lat},${lng}`;
 
       const timestamp = new Date().toISOString();
 
@@ -84,7 +89,7 @@ export async function pollBlynkCloud(broadcastWs) {
         googleMapUrl,
       };
 
-      // Run Protection Engine check (V2 Load Current > 2A or Temp > 90C)
+      // Run Protection Engine check (V2 Load Current > 1.5A or Temp > 90C)
       await processTelemetryProtection(reading, broadcastWs, token);
 
       // Broadcast live stream via WebSocket
