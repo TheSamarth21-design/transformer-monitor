@@ -80,7 +80,7 @@ export function Topbar() {
         lat: device.lat || 18.650029,
         lng: device.lng || 73.745274,
         googleMapUrl: device.googleMapsLink || `https://www.google.com/maps?q=18.650029,73.745274`,
-        cause: "Over-current Overload (3.5A > 1.5A safety limit)",
+        cause: "Over-current Overload (3.5A > 2.0A safety limit)",
         timestamp: new Date().toISOString(),
         voltage: 231,
         current: 3.5,
