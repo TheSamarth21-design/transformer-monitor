@@ -1,83 +1,108 @@
-import admin from "firebase-admin";
+import https from "node:https";
 
-let isFirebaseInitialized = false;
-let db = null;
+const FIREBASE_PROJECT_ID = process.env.FIREBASE_PROJECT_ID || "transformer-monitoring-8a988";
 
-export function initFirebase() {
-  try {
-    if (admin.apps.length > 0) {
-      isFirebaseInitialized = true;
-      db = admin.firestore();
-      return;
-    }
+// Simple HTTPS POST JSON helper for Firebase Firestore REST API
+function firebaseRestRequest(path, method = "POST", payload = null) {
+  return new Promise((resolve) => {
+    const url = `https://firestore.googleapis.com/v1/projects/${FIREBASE_PROJECT_ID}/databases/(default)/documents${path}`;
 
-    const serviceAccountJson = process.env.FIREBASE_SERVICE_ACCOUNT;
-    const projectId = process.env.FIREBASE_PROJECT_ID || "transformer-monitor-cloud";
-
-    if (serviceAccountJson) {
-      const serviceAccount = JSON.parse(serviceAccountJson);
-      admin.initializeApp({
-        credential: admin.credential.cert(serviceAccount),
-        projectId,
-      });
-      isFirebaseInitialized = true;
-      db = admin.firestore();
-      console.log("[Firebase] Initialized with Service Account cert.");
-    } else {
-      // Default / mock initialization fallback
-      admin.initializeApp({
-        projectId,
-      });
-      isFirebaseInitialized = true;
-      db = admin.firestore();
-      console.log(`[Firebase] Initialized with Project ID '${projectId}'.`);
-    }
-  } catch (err) {
-    console.log("[Firebase] Initialization skipped or credentials pending:", err.message);
-  }
-}
-
-export async function syncTelemetryToFirestore(reading) {
-  if (!isFirebaseInitialized || !db) return;
-  try {
-    const docRef = db.collection("transformers").doc("TR-0042").collection("telemetry").doc();
-    await docRef.set({
-      ...reading,
-      createdAt: admin.firestore.FieldValue.serverTimestamp(),
-    });
-    // Update latest document
-    await db.collection("transformers").doc("TR-0042").set(
-      {
-        lastReading: reading,
-        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    const dataString = payload ? JSON.stringify(payload) : "";
+    const options = {
+      method,
+      headers: {
+        "Content-Type": "application/json",
+        "Content-Length": Buffer.byteLength(dataString),
       },
-      { merge: true }
-    );
+    };
+
+    const req = https.request(url, options, (res) => {
+      let body = "";
+      res.on("data", (chunk) => (body += chunk));
+      res.on("end", () => {
+        try {
+          resolve(JSON.parse(body));
+        } catch {
+          resolve(body);
+        }
+      });
+    });
+
+    req.on("error", () => resolve(null));
+    if (payload) req.write(dataString);
+    req.end();
+  });
+}
+
+/**
+ * Format JS primitive values into Firestore REST API Value JSON objects
+ */
+function toFirestoreFields(obj) {
+  const fields = {};
+  for (const [key, val] of Object.entries(obj)) {
+    if (typeof val === "number") {
+      fields[key] = { doubleValue: val };
+    } else if (typeof val === "boolean") {
+      fields[key] = { booleanValue: val };
+    } else {
+      fields[key] = { stringValue: String(val ?? "") };
+    }
+  }
+  return fields;
+}
+
+/**
+ * Sync telemetry data point to Firebase Cloud Firestore
+ */
+export async function syncTelemetryToFirestore(reading) {
+  try {
+    const fields = toFirestoreFields({
+      ...reading,
+      createdAt: new Date().toISOString(),
+    });
+
+    // 1. Add document to 'telemetry' collection
+    await firebaseRestRequest("/telemetry", "POST", { fields });
+
+    // 2. Patch live device status document in 'devices/TR-0042'
+    const deviceFields = toFirestoreFields({
+      id: "TR-0042",
+      name: "Smart Transformer",
+      location: reading.lat !== 0 && reading.lng !== 0 ? `GPS: ${reading.lat}, ${reading.lng}` : "Awaiting Blynk GPS Fix",
+      lat: reading.lat || 0,
+      lng: reading.lng || 0,
+      voltage: reading.voltage,
+      current: reading.current,
+      temperature: reading.temperature,
+      humidity: reading.humidity,
+      relayState: reading.relayState,
+      health: reading.health,
+      healthScore: reading.healthScore,
+      alertMsg: reading.alertMsg,
+      googleMapUrl: reading.googleMapUrl,
+      online: reading.online ?? true,
+      lastUpdated: new Date().toISOString(),
+    });
+
+    await firebaseRestRequest("/devices/TR-0042", "PATCH", { fields: deviceFields });
   } catch (err) {
-    // Quietly log sync error
+    // Quiet fail if Firestore is unreachable
   }
 }
 
-export async function syncAlertToFirestore(alert) {
-  if (!isFirebaseInitialized || !db) return;
+/**
+ * Log emergency alert event to Firebase Cloud Firestore
+ */
+export async function logAlertToFirestore(alertData) {
   try {
-    await db.collection("alerts").doc(alert.id || `al-${Date.now()}`).set({
-      ...alert,
-      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+    const fields = toFirestoreFields({
+      ...alertData,
+      createdAt: new Date().toISOString(),
     });
+    await firebaseRestRequest("/alerts", "POST", { fields });
   } catch (err) {
-    // Quietly log
+    // Quiet fail
   }
 }
 
-export async function syncRelayEventToFirestore(event) {
-  if (!isFirebaseInitialized || !db) return;
-  try {
-    await db.collection("relay_events").doc(event.id || `evt-${Date.now()}`).set({
-      ...event,
-      createdAt: admin.firestore.FieldValue.serverTimestamp(),
-    });
-  } catch (err) {
-    // Quietly log
-  }
-}
+console.log(`[Firebase] Initialized with Project ID '${FIREBASE_PROJECT_ID}'.`);
