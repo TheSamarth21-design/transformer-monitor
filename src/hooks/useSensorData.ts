@@ -8,7 +8,7 @@ import type {
   TransformerDevice,
 } from "@/lib/types";
 import { apiRequest, subscribeWebSocket } from "@/lib/api";
-import { subscribeFirebaseLiveDevice, saveTelemetryToFirestore } from "@/lib/firebase";
+import { subscribeFirebaseLiveDevice, subscribeFirebaseTelemetryHistory, saveTelemetryToFirestore } from "@/lib/firebase";
 
 const BLYNK_TOKEN = "uR3iUqcSJMTS7-OEfnsuSDj-5Sqrxl0L";
 const BLYNK_POLL_URL = `https://blynk.cloud/external/api/get?token=${BLYNK_TOKEN}&v0&v1&v2&v3&v4&v5&v6&v7&v8&v9`;
@@ -316,12 +316,92 @@ export function useAlerts(): AlertItem[] & {
 
 export function useHistory(range: "day" | "week" | "month" | "year"): HistoryPoint[] {
   const [history, setHistory] = useState<HistoryPoint[]>([]);
+  const liveReading = useLiveReading();
 
   useEffect(() => {
+    // 1. Local backend REST fetch
     apiRequest<HistoryPoint[]>(`/telemetry/history?range=${range}`)
-      .then((data) => setHistory(data))
+      .then((data) => {
+        if (Array.isArray(data) && data.length > 0) {
+          setHistory(data);
+        }
+      })
       .catch(() => {});
+
+    // 2. Cloud Firestore Telemetry stream listener
+    const unsubscribeFb = subscribeFirebaseTelemetryHistory((fbItems: any[]) => {
+      if (Array.isArray(fbItems) && fbItems.length > 0) {
+        const formatted = fbItems
+          .reverse()
+          .map((item) => ({
+            time: new Date(item.createdAt || item.timestamp || Date.now()).toLocaleTimeString([], {
+              hour: "2-digit",
+              minute: "2-digit",
+              second: "2-digit",
+            }),
+            voltage: Number(item.voltage || 0),
+            current: Number(item.current || 0),
+            temperature: Number(item.temperature || 0),
+            humidity: Number(item.humidity || 0),
+          }));
+        setHistory(formatted);
+      }
+    });
+
+    return () => {
+      unsubscribeFb();
+    };
   }, [range]);
+
+  // 3. Continuously append live streaming Blynk hardware telemetry to historical chart buffer
+  useEffect(() => {
+    if (liveReading.timestamp) {
+      const timeStr = new Date(liveReading.timestamp).toLocaleTimeString([], {
+        hour: "2-digit",
+        minute: "2-digit",
+        second: "2-digit",
+      });
+
+      setHistory((prev) => {
+        // If history is empty, generate an initial rolling history around active readings
+        if (prev.length === 0) {
+          const now = Date.now();
+          const basePoints: HistoryPoint[] = [];
+          for (let i = 9; i >= 0; i--) {
+            const pastTime = new Date(now - i * 3000).toLocaleTimeString([], {
+              hour: "2-digit",
+              minute: "2-digit",
+              second: "2-digit",
+            });
+            basePoints.push({
+              time: pastTime,
+              voltage: Number(liveReading.voltage.toFixed(1)),
+              current: Number(liveReading.current.toFixed(1)),
+              temperature: Number(liveReading.temperature.toFixed(1)),
+              humidity: Number(liveReading.humidity.toFixed(1)),
+            });
+          }
+          return basePoints;
+        }
+
+        // Prevent duplicate timestamp entries
+        if (prev[prev.length - 1]?.time === timeStr) {
+          return prev;
+        }
+
+        const newPoint: HistoryPoint = {
+          time: timeStr,
+          voltage: Number(liveReading.voltage.toFixed(1)),
+          current: Number(liveReading.current.toFixed(1)),
+          temperature: Number(liveReading.temperature.toFixed(1)),
+          humidity: Number(liveReading.humidity.toFixed(1)),
+        };
+
+        const updated = [...prev, newPoint];
+        return updated.slice(-25); // Keep rolling 25 recent data points for smooth line graphs
+      });
+    }
+  }, [liveReading.timestamp, liveReading.voltage, liveReading.current, liveReading.temperature, liveReading.humidity]);
 
   return history;
 }
