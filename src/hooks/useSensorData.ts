@@ -214,21 +214,35 @@ export function useLiveReading(): LiveReading & { isHardwareOnline: boolean; isR
           humidity: isHumOk ? ("real" as const) : ("replicated" as const),
         };
 
-        // Construct Technician Message detailing 20-sample pattern prediction
+        // Construct Alert Message (Sanitize stale TRIPPED strings if Relay is CLOSED)
         let alertMsg = String(blynkData.v8 || "");
         const sampleCount = Math.max(
           sensorHistoryWindow.voltage.length,
           sensorHistoryWindow.current.length
         );
 
-        if (isAllFailed) {
-          alertMsg = `⚠️ ESP32 Hardware Offline / Standby. AI Replicator active using 20-sample pattern.`;
-        } else if (!isVoltOk) {
-          alertMsg = `⚠️ VOLTAGE SENSOR FAULT: ZMPT101B disconnected. Replicating 20-sample voltage trend.`;
-        } else if (!isCurOk) {
-          alertMsg = `⚠️ CURRENT SENSOR FAULT: ACS712 disconnected. Replicating 20-sample load current trend.`;
-        } else if (!isTempOk) {
-          alertMsg = `⚠️ THERMAL SENSOR FAULT: DHT11 temperature sensor disconnected.`;
+        if (relayState === "closed") {
+          // Relay is ON & Closed -> Ignore stale TRIPPED string from V8
+          if (finalCur > 2.0) {
+            alertMsg = `🚨 CRITICAL OVERLOAD: Load Current (${finalCur.toFixed(1)}A) exceeds 2.0A safety limit!`;
+          } else if (finalCur > 1.0) {
+            alertMsg = `⚠️ ELEVATED LOAD CURRENT: Load Current is ${finalCur.toFixed(1)}A. Substation operating normally.`;
+          } else if (isAllFailed) {
+            alertMsg = `⚠️ ESP32 Hardware Offline / Standby. AI Replicator active using 20-sample pattern.`;
+          } else if (!isVoltOk) {
+            alertMsg = `⚠️ VOLTAGE SENSOR FAULT: ZMPT101B disconnected. Replicating 20-sample voltage trend.`;
+          } else if (!isCurOk) {
+            alertMsg = `⚠️ CURRENT SENSOR FAULT: ACS712 disconnected. Replicating 20-sample load current trend.`;
+          } else if (!isTempOk) {
+            alertMsg = `⚠️ THERMAL SENSOR FAULT: DHT11 temperature sensor disconnected.`;
+          } else {
+            alertMsg = ""; // Clean nominal state
+          }
+        } else {
+          // Relay is TRIPPED
+          if (!alertMsg || !alertMsg.includes("TRIPPED")) {
+            alertMsg = "🚨 RELAY TRIPPED: Substation circuit interlock opened.";
+          }
         }
 
         const telemetryData: LiveReading = {
