@@ -71,7 +71,7 @@ export function Topbar({ onOpenMobileDrawer }: { onOpenMobileDrawer?: () => void
       sessionStorage.removeItem("presentation_mute_alerts");
     }
 
-    // 2. Dispatch client-side Emergency Alert Event with user requested specs: 2.6A, 120V, 25°C, 64%
+    // 2. Dispatch client-side Emergency Alert Event with specs: 2.6A, 120V, 25°C, 64%
     const testAlertEvent = new CustomEvent("trigger_emergency_alert", {
       detail: {
         alertId: `al-${Date.now()}`,
@@ -322,7 +322,7 @@ export function Topbar({ onOpenMobileDrawer }: { onOpenMobileDrawer?: () => void
                 </div>
                 <div className="flex flex-col">
                   <span className="text-xs font-bold text-on-surface">{user?.name || "Substation Engineer"}</span>
-                  <span className="text-[11px] text-on-surface-variant font-mono">{user?.email || "admin@transformer.com"}</span>
+                  <span className="text-[11px] text-on-surface-variant font-mono">{user?.email || "user@grid.com"}</span>
                   <span className="text-[10px] text-primary font-semibold uppercase mt-0.5">{user?.role || "Substation Engineer"}</span>
                 </div>
               </div>

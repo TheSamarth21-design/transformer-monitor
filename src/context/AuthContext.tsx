@@ -1,21 +1,20 @@
 import { createContext, useContext, useEffect, useState } from "react";
-import { auth, db } from "@/lib/firebase";
 import {
-  createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
+  createUserWithEmailAndPassword,
   signOut,
-  updateProfile,
   onAuthStateChanged,
+  updateProfile,
 } from "firebase/auth";
-import { doc, setDoc, getDoc } from "firebase/firestore";
+import { doc, getDoc, setDoc } from "firebase/firestore";
+import { auth, db } from "@/lib/firebase";
 import { apiRequest } from "@/lib/api";
 
 export interface UserProfile {
   id: string;
   email: string;
   name: string;
-  role: string;
-  createdAt?: string;
+  role?: string;
 }
 
 interface AuthContextType {
@@ -31,29 +30,32 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [token, setToken] = useState<string | null>(() => localStorage.getItem("token"));
   const [user, setUser] = useState<UserProfile | null>(() => {
-    try {
-      const cached = localStorage.getItem("user_profile");
-      return cached ? JSON.parse(cached) : null;
-    } catch {
-      return null;
-    }
+    const saved = localStorage.getItem("user_profile");
+    return saved ? JSON.parse(saved) : null;
   });
-
+  const [token, setToken] = useState<string | null>(() => localStorage.getItem("token"));
   const [isLoading, setIsLoading] = useState<boolean>(true);
 
-  // Instant safety timeout: Guarantee spinner clears in <= 600ms
   useEffect(() => {
+    // Safety fallback timer to prevent infinite loading state
     const safetyTimer = setTimeout(() => {
       setIsLoading(false);
-    }, 600);
+    }, 1500);
 
     const unsubscribe = onAuthStateChanged(auth, async (fbUser: any) => {
-      if (fbUser) {
+      if (!fbUser) {
+        // If not in firebase, check saved local session
+        const savedToken = localStorage.getItem("token");
+        const savedProfile = localStorage.getItem("user_profile");
+        if (!savedToken || !savedProfile) {
+          setUser(null);
+          setToken(null);
+        }
+      } else {
         const idToken = await fbUser.getIdToken();
-        localStorage.setItem("token", idToken);
         setToken(idToken);
+        localStorage.setItem("token", idToken);
 
         let role = "Substation Engineer";
         try {
@@ -67,7 +69,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
         const userObj: UserProfile = {
           id: fbUser.uid,
-          email: fbUser.email || "engineer@transformer.com",
+          email: fbUser.email || "engineer@grid.com",
           name: fbUser.displayName || fbUser.email?.split("@")[0] || "Substation Engineer",
           role,
         };
@@ -107,26 +109,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       const userObj: UserProfile = {
         id: fbUser.uid,
-        email: fbUser.email || email,
-        name: fbUser.displayName || email.split("@")[0],
+        email: fbUser.email || email.trim(),
+        name: fbUser.displayName || email.split("@")[0] || "Substation Engineer",
         role,
       };
 
       setUser(userObj);
       localStorage.setItem("user_profile", JSON.stringify(userObj));
-      setIsLoading(false);
-      return;
     } catch (firebaseErr: any) {
-      // 2. Fallback to Express Backend Auth API
+      // Fallback: Try local backend REST auth if available
       try {
         const data = await apiRequest<{ token: string; user: UserProfile }>("/auth/login", {
           method: "POST",
           body: JSON.stringify({ email, password }),
         });
-
-        if (data.token) {
-          localStorage.setItem("token", data.token);
+        if (data && data.token) {
           setToken(data.token);
+          localStorage.setItem("token", data.token);
           setUser(data.user);
           localStorage.setItem("user_profile", JSON.stringify(data.user));
           setIsLoading(false);
@@ -181,13 +180,29 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       setUser(userObj);
       localStorage.setItem("user_profile", JSON.stringify(userObj));
-      setIsLoading(false);
     } catch (firebaseErr: any) {
-      let errorMsg = firebaseErr.message || "Failed to register member.";
+      // Fallback: Try local backend REST registration if available
+      try {
+        const data = await apiRequest<{ token: string; user: UserProfile }>("/auth/register", {
+          method: "POST",
+          body: JSON.stringify({ name, email, password, role }),
+        });
+        if (data && data.token) {
+          setToken(data.token);
+          localStorage.setItem("token", data.token);
+          setUser(data.user);
+          localStorage.setItem("user_profile", JSON.stringify(data.user));
+          return;
+        }
+      } catch {
+        // Ignore
+      }
+
+      let errorMsg = firebaseErr.message || "Failed to register member account.";
       if (firebaseErr.code === "auth/email-already-in-use") {
-        errorMsg = "An account with this email address already exists. Please Sign In.";
+        errorMsg = "An account with this email address already exists. Please sign in instead.";
       } else if (firebaseErr.code === "auth/weak-password") {
-        errorMsg = "Password should be at least 6 characters long.";
+        errorMsg = "Password must be at least 6 characters long.";
       }
       throw new Error(errorMsg);
     }
@@ -195,11 +210,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const logout = () => {
     signOut(auth).catch(() => {});
+    setUser(null);
+    setToken(null);
     localStorage.removeItem("token");
     localStorage.removeItem("user_profile");
-    setToken(null);
-    setUser(null);
-    setIsLoading(false);
   };
 
   return (
@@ -207,7 +221,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       value={{
         user,
         token,
-        isAuthenticated: Boolean(token || user),
+        isAuthenticated: !!token || !!user,
         isLoading,
         login,
         register,

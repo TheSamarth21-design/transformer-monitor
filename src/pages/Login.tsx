@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useAuth } from "@/context/AuthContext";
 import { useNavigate, useLocation } from "react-router-dom";
-import { Zap, Mail, Lock, User, ShieldCheck, ArrowRight, AlertCircle, Sparkles, CheckCircle2 } from "lucide-react";
+import { Zap, Mail, Lock, User, ArrowRight, AlertCircle, CheckCircle2 } from "lucide-react";
 
 export default function Login() {
   const { login, register, isAuthenticated } = useAuth();
@@ -51,21 +51,6 @@ export default function Login() {
     }
   };
 
-  const handleDemoLogin = async () => {
-    setEmail("admin@transformer.com");
-    setPassword("admin123");
-    setErrorMessage("");
-    setLoading(true);
-    try {
-      await login("admin@transformer.com", "admin123");
-      navigate(from, { replace: true });
-    } catch (err: any) {
-      setErrorMessage("Demo login failed: " + err.message);
-    } finally {
-      setLoading(false);
-    }
-  };
-
   return (
     <div className="min-h-screen w-full bg-[#121216] text-white flex flex-col justify-between p-4 sm:p-8 relative overflow-hidden">
       
@@ -84,14 +69,6 @@ export default function Login() {
             <span className="text-xs text-white/50 block font-mono">Smart Grid & Protection System</span>
           </div>
         </div>
-        <button
-          onClick={handleDemoLogin}
-          disabled={loading}
-          className="px-3.5 py-1.5 rounded-full bg-white/10 hover:bg-white/20 border border-white/20 text-xs font-bold text-white flex items-center gap-1.5 transition-colors cursor-pointer"
-        >
-          <Sparkles size={14} className="text-warning" />
-          <span>1-Click Demo Login</span>
-        </button>
       </div>
 
       {/* Main Authentication Card */}
@@ -189,7 +166,7 @@ export default function Login() {
                   required
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  placeholder="engineer@transformer.com"
+                  placeholder="name@company.com"
                   className="w-full h-11 pl-9 pr-3 rounded-xl bg-white/5 border border-white/10 text-sm font-medium text-white placeholder:text-white/30 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
                 />
               </div>
@@ -237,18 +214,6 @@ export default function Login() {
               <ArrowRight size={18} />
             </button>
           </form>
-
-          {/* Quick Admin Test Credentials Banner */}
-          {!isRegisterMode && (
-            <div className="p-3 rounded-xl bg-white/5 border border-white/10 text-xs flex flex-col gap-1">
-              <span className="font-bold text-white/80 flex items-center gap-1">
-                <ShieldCheck size={14} className="text-primary" />
-                Default Test Account Credentials:
-              </span>
-              <span className="font-mono text-white/60">Email: admin@transformer.com</span>
-              <span className="font-mono text-white/60">Password: admin123</span>
-            </div>
-          )}
 
         </div>
       </div>
