@@ -160,7 +160,7 @@ export async function initDb() {
     "TR-0042",
   ]);
 
-  // Seed default relay status with 50A threshold limit for presentation
+  // Seed default relay status with 1.5A max current & 115V max voltage threshold limit
   const existingRelay = await get(`SELECT * FROM relay_status WHERE id = ?`, ["relay-1"]);
   if (!existingRelay) {
     await run(
@@ -172,15 +172,14 @@ export async function initDb() {
         0,
         "System Nominal",
         new Date().toISOString(),
-        90,
-        50.0,
-        260,
+        60,
+        1.5,
+        115,
       ]
     );
   } else {
-    await run(`UPDATE relay_status SET state = ?, auto_trip_enabled = 0, max_current = ? WHERE id = ?`, [
+    await run(`UPDATE relay_status SET state = ?, auto_trip_enabled = 0, max_temperature = 60, max_current = 1.5, max_voltage = 115 WHERE id = ?`, [
       "closed",
-      50.0,
       "relay-1",
     ]);
   }

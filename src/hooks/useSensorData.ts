@@ -70,290 +70,216 @@ function predictFromPattern(
   }
 
   const slope = den !== 0 ? num / den : 0;
-  // Project next trend point along observed pattern
-  const predictedNext = meanY + slope * 1.5 + (Math.sin(n * 0.5) * 0.15);
-  const clamped = Math.max(minBound, Math.min(maxBound, predictedNext));
+  // Project next point: Y_next = meanY + slope * (next_x - meanX)
+  let projected = meanY + slope * (n - meanX);
 
-  return Number(clamped.toFixed(1));
+  // Add subtle ambient physical fluctuation (noise) bounded strictly within safe bounds
+  const variance = history.reduce((sum, val) => sum + Math.pow(val - meanY, 2), 0) / n;
+  const stdDev = Math.sqrt(variance) || 0.1;
+  const noise = (Math.random() - 0.5) * stdDev * 0.5;
+
+  projected += noise;
+  return Number(Math.max(minBound, Math.min(maxBound, projected)).toFixed(1));
 }
 
+/**
+ * Hook to poll and subscribe to live Blynk Hardware & Firebase Telemetry
+ */
 export function useLiveReading(): LiveReading & { isHardwareOnline: boolean; isReplicatedData: boolean } {
-  const [reading, setReading] = useState<LiveReading>({
-    voltage: 0,
-    current: 0,
-    temperature: 0,
-    humidity: 0,
+  const [reading, setReading] = useState<LiveReading & { isHardwareOnline: boolean; isReplicatedData: boolean }>({
+    voltage: 120.0,
+    current: 1.2,
+    temperature: 24.7,
+    humidity: 64.0,
     lat: DEFAULT_LAT,
     lng: DEFAULT_LNG,
-    health: "Awaiting Hardware Sync...",
+    relayState: "closed",
+    health: "Nominal (95%)",
+    healthScore: 95,
     alertMsg: "",
-    googleMapUrl: `https://www.google.com/maps?q=${DEFAULT_LAT},${DEFAULT_LNG}`,
+    googleMapUrl: "https://www.google.com/maps?q=18.649916,73.745276",
     timestamp: new Date().toISOString(),
+    isHardwareOnline: true,
     isReplicatedData: false,
-    sensorStatus: {
-      voltage: "real",
-      current: "real",
-      temperature: "real",
-      humidity: "real",
-    },
   });
 
-  const [isHardwareOnline, setIsHardwareOnline] = useState<boolean>(false);
-  const [isReplicatedData, setIsReplicatedData] = useState<boolean>(false);
-
   useEffect(() => {
-    // 1. Backend REST fetch (if local server running)
-    apiRequest<LiveReading>("/telemetry/live")
-      .then((data) => {
-        if (data && typeof data.voltage === "number") {
-          setReading(data);
-          setIsHardwareOnline(Boolean(data.voltage > 0 || data.current > 0));
-        }
-      })
-      .catch(() => {});
+    let isSubscribed = true;
 
-    // 2. Local WebSocket Subscription
+    // 1. Firebase Real-Time Telemetry Listener
+    const unsubscribeFb = subscribeFirebaseLiveDevice((deviceData: any) => {
+      if (isSubscribed && deviceData) {
+        setReading((prev) => {
+          const rawRelay = deviceData.relayState?.toLowerCase();
+          const cleanRelayState = rawRelay === "closed" || rawRelay === "1" ? "closed" : "tripped";
+
+          return {
+            ...prev,
+            voltage: typeof deviceData.voltage === "number" ? deviceData.voltage : prev.voltage,
+            current: typeof deviceData.current === "number" ? deviceData.current : prev.current,
+            temperature: typeof deviceData.temperature === "number" ? deviceData.temperature : prev.temperature,
+            humidity: typeof deviceData.humidity === "number" ? deviceData.humidity : prev.humidity,
+            lat: deviceData.lat || prev.lat,
+            lng: deviceData.lng || prev.lng,
+            relayState: cleanRelayState,
+            health: deviceData.health || prev.health,
+            healthScore: deviceData.healthScore || prev.healthScore,
+            alertMsg: cleanRelayState === "closed" ? "" : deviceData.alertMsg || prev.alertMsg,
+            googleMapUrl: deviceData.googleMapUrl || prev.googleMapUrl,
+            timestamp: deviceData.lastUpdated || new Date().toISOString(),
+          };
+        });
+      }
+    });
+
+    // 2. Poll Blynk Cloud API
+    const fetchBlynkData = async () => {
+      try {
+        const response = await fetch(BLYNK_POLL_URL);
+        if (!response.ok) throw new Error("Blynk API HTTP Error");
+
+        const data = await response.json();
+        
+        let tempVal = data?.v0 !== undefined ? Number(data.v0) : 0;
+        let humVal = data?.v1 !== undefined ? Number(data.v1) : 0;
+        let curVal = data?.v2 !== undefined ? Number(data.v2) : 0;
+        let voltVal = data?.v3 !== undefined ? Number(data.v3) : 0;
+        const latVal = data?.v4 !== undefined ? Number(data.v4) : 0;
+        const lngVal = data?.v5 !== undefined ? Number(data.v5) : 0;
+        const relayVal = data?.v6 !== undefined ? String(data.v6) : "1";
+        const healthVal = data?.v7 !== undefined ? String(data.v7) : "Nominal";
+        const alertVal = data?.v8 !== undefined ? String(data.v8) : "";
+        const mapUrlVal = data?.v9 !== undefined ? String(data.v9) : "";
+
+        // Push real samples to rolling window for ML pattern learning
+        if (voltVal > 0) sensorHistoryWindow.voltage.push(voltVal);
+        if (curVal > 0) sensorHistoryWindow.current.push(curVal);
+        if (tempVal > 0) sensorHistoryWindow.temperature.push(tempVal);
+        if (humVal > 0) sensorHistoryWindow.humidity.push(humVal);
+
+        // Keep rolling memory window at max 20 samples
+        if (sensorHistoryWindow.voltage.length > 20) sensorHistoryWindow.voltage.shift();
+        if (sensorHistoryWindow.current.length > 20) sensorHistoryWindow.current.shift();
+        if (sensorHistoryWindow.temperature.length > 20) sensorHistoryWindow.temperature.shift();
+        if (sensorHistoryWindow.humidity.length > 20) sensorHistoryWindow.humidity.shift();
+
+        // Check if Blynk Hardware Node is offline/damaged
+        const isHardwareResponding = voltVal > 0 || curVal > 0 || tempVal > 0;
+        let isReplicated = false;
+
+        // AI PREDICTIVE REPLICATOR FAILOVER ENGINE
+        if (!isHardwareResponding) {
+          isReplicated = true;
+          voltVal = predictFromPattern(sensorHistoryWindow.voltage, 120.0, 110.0, 130.0);
+          curVal = predictFromPattern(sensorHistoryWindow.current, 1.2, 0.5, 2.5);
+          tempVal = predictFromPattern(sensorHistoryWindow.temperature, 24.7, 20.0, 85.0);
+          humVal = predictFromPattern(sensorHistoryWindow.humidity, 64.0, 40.0, 90.0);
+        }
+
+        const isClosedRelay = relayVal === "1" || relayVal === "closed" || relayVal === "CLOSED";
+        const cleanRelayState: "closed" | "tripped" = isClosedRelay ? "closed" : "tripped";
+
+        // Calculate dynamic health index score
+        let computedScore = 95;
+        if (curVal > 2.0) computedScore = 25;
+        else if (curVal > 1.0) computedScore = 65;
+        else if (tempVal > 70) computedScore = 55;
+
+        const updatedReading: LiveReading & { isHardwareOnline: boolean; isReplicatedData: boolean } = {
+          voltage: Number(voltVal.toFixed(1)),
+          current: Number(curVal.toFixed(1)),
+          temperature: Number(tempVal.toFixed(1)),
+          humidity: Number(humVal.toFixed(1)),
+          lat: latVal !== 0 ? latVal : DEFAULT_LAT,
+          lng: lngVal !== 0 ? lngVal : DEFAULT_LNG,
+          relayState: cleanRelayState,
+          health: isClosedRelay ? (healthVal && healthVal !== "Connecting..." ? healthVal : `Nominal (${computedScore}%)`) : "TRIPPED (0%)",
+          healthScore: computedScore,
+          alertMsg: isClosedRelay ? "" : (alertVal || "TRIPPED: Over-current Protection Lockout"),
+          googleMapUrl: mapUrlVal || `https://www.google.com/maps?q=${latVal || DEFAULT_LAT},${lngVal || DEFAULT_LNG}`,
+          timestamp: new Date().toISOString(),
+          isHardwareOnline: isHardwareResponding,
+          isReplicatedData: isReplicated,
+        };
+
+        if (isSubscribed) {
+          setReading(updatedReading);
+          // Sync live telemetry point to Cloud Firestore
+          saveTelemetryToFirestore(updatedReading);
+        }
+      } catch {
+        // AI FAILOVER GENERATOR
+        if (isSubscribed) {
+          const voltVal = predictFromPattern(sensorHistoryWindow.voltage, 120.0, 110.0, 130.0);
+          const curVal = predictFromPattern(sensorHistoryWindow.current, 1.2, 0.5, 2.5);
+          const tempVal = predictFromPattern(sensorHistoryWindow.temperature, 24.7, 20.0, 85.0);
+          const humVal = predictFromPattern(sensorHistoryWindow.humidity, 64.0, 40.0, 90.0);
+
+          setReading((prev) => ({
+            ...prev,
+            voltage: Number(voltVal.toFixed(1)),
+            current: Number(curVal.toFixed(1)),
+            temperature: Number(tempVal.toFixed(1)),
+            humidity: Number(humVal.toFixed(1)),
+            health: "AI Synced (90%)",
+            healthScore: 90,
+            timestamp: new Date().toISOString(),
+            isHardwareOnline: false,
+            isReplicatedData: true,
+          }));
+        }
+      }
+    };
+
+    fetchBlynkData();
+    const interval = setInterval(fetchBlynkData, 2000);
+
+    // 3. Backend Server WebSocket Listener
     const unsubscribeWs = subscribeWebSocket((event) => {
       if (event.type === "LIVE_READING" && event.data) {
-        setReading(event.data);
-        setIsHardwareOnline(Boolean(event.data.voltage > 0 || event.data.current > 0));
+        setReading((prev) => ({ ...prev, ...event.data, isHardwareOnline: true }));
       }
     });
-
-    // 3. Cloud Firestore Realtime Sync (with strict TRIPPED message sanitization when online)
-    const unsubscribeFb = subscribeFirebaseLiveDevice((devData: any) => {
-      if (devData) {
-        const isClosed = devData.relayState === "closed" || (devData.current || 0) <= 2.0;
-        let cleanAlert = devData.alertMsg || "";
-
-        // Purge stale TRIPPED strings if hardware relay is closed / normal
-        if (isClosed && cleanAlert.includes("TRIPPED")) {
-          cleanAlert = devData.current > 1.0
-            ? `⚠️ ELEVATED LOAD CURRENT: Load Current is ${devData.current.toFixed(1)}A.`
-            : "";
-        }
-
-        setReading((prev) => ({
-          ...prev,
-          voltage: devData.voltage ?? prev.voltage,
-          current: devData.current ?? prev.current,
-          temperature: devData.temperature ?? prev.temperature,
-          humidity: devData.humidity ?? prev.humidity,
-          lat: devData.lat || DEFAULT_LAT,
-          lng: devData.lng || DEFAULT_LNG,
-          health: devData.health ?? prev.health,
-          alertMsg: cleanAlert,
-          googleMapUrl: devData.googleMapUrl || `https://www.google.com/maps?q=${DEFAULT_LAT},${DEFAULT_LNG}`,
-          timestamp: devData.lastUpdated ?? new Date().toISOString(),
-          isReplicatedData: devData.isReplicatedData ?? false,
-          sensorStatus: devData.sensorStatus || prev.sensorStatus,
-        }));
-
-        setIsHardwareOnline(Boolean((devData.voltage || 0) > 0 || (devData.current || 0) > 0));
-        setIsReplicatedData(Boolean(devData.isReplicatedData));
-      }
-    });
-
-    // 4. Blynk Hardware API Poller with 20-Sample Pattern Recognition AI Replicator
-    const blynkPoller = setInterval(async () => {
-      try {
-        const res = await fetch(BLYNK_POLL_URL);
-        if (!res.ok) {
-          throw new Error("Blynk API Unreachable");
-        }
-        const blynkData = await res.json();
-
-        const rawTemp = parseFloat(blynkData.v0) || 0;
-        const rawHum = parseFloat(blynkData.v1) || 0;
-        const rawCur = parseFloat(blynkData.v2) || 0;
-        const rawVolt = parseFloat(blynkData.v3) || 0;
-        const rawLat = parseFloat(blynkData.v4) || 0;
-        const rawLng = parseFloat(blynkData.v5) || 0;
-        const lat = rawLat !== 0 ? rawLat : DEFAULT_LAT;
-        const lng = rawLng !== 0 ? rawLng : DEFAULT_LNG;
-        const relayVal = parseInt(blynkData.v6, 10);
-        const relayState = relayVal === 1 ? "closed" : "tripped";
-
-        // Record real physical sensor samples into 20-sample rolling memory window
-        if (rawVolt > 0) {
-          sensorHistoryWindow.voltage.push(rawVolt);
-          if (sensorHistoryWindow.voltage.length > 20) sensorHistoryWindow.voltage.shift();
-        }
-        if (rawCur > 0) {
-          sensorHistoryWindow.current.push(rawCur);
-          if (sensorHistoryWindow.current.length > 20) sensorHistoryWindow.current.shift();
-        }
-        if (rawTemp > 0) {
-          sensorHistoryWindow.temperature.push(rawTemp);
-          if (sensorHistoryWindow.temperature.length > 20) sensorHistoryWindow.temperature.shift();
-        }
-        if (rawHum > 0) {
-          sensorHistoryWindow.humidity.push(rawHum);
-          if (sensorHistoryWindow.humidity.length > 20) sensorHistoryWindow.humidity.shift();
-        }
-
-        // Granular Per-Sensor Health Evaluation
-        const isVoltOk = rawVolt > 0;
-        const isCurOk = rawCur > 0;
-        const isTempOk = rawTemp > 0;
-        const isHumOk = rawHum > 0;
-
-        const isAnySensorFailed = !isVoltOk || !isCurOk || !isTempOk || !isHumOk;
-        const isAllFailed = !isVoltOk && !isCurOk;
-
-        // Predict failover values using observed 20-sample pattern regression
-        const finalVolt = isVoltOk
-          ? rawVolt
-          : predictFromPattern(sensorHistoryWindow.voltage, 119.5, 110.0, 130.0);
-
-        const finalCur = isCurOk
-          ? rawCur
-          : predictFromPattern(sensorHistoryWindow.current, 0.85, 0.0, 2.5);
-
-        const finalTemp = isTempOk
-          ? rawTemp
-          : predictFromPattern(sensorHistoryWindow.temperature, 28.4, 15.0, 75.0);
-
-        const finalHum = isHumOk
-          ? rawHum
-          : predictFromPattern(sensorHistoryWindow.humidity, 62.0, 30.0, 90.0);
-
-        const sensorStatus = {
-          voltage: isVoltOk ? ("real" as const) : ("replicated" as const),
-          current: isCurOk ? ("real" as const) : ("replicated" as const),
-          temperature: isTempOk ? ("real" as const) : ("replicated" as const),
-          humidity: isHumOk ? ("real" as const) : ("replicated" as const),
-        };
-
-        // Construct Alert Message (Sanitize stale TRIPPED strings if Relay is CLOSED)
-        let alertMsg = String(blynkData.v8 || "");
-        const sampleCount = Math.max(
-          sensorHistoryWindow.voltage.length,
-          sensorHistoryWindow.current.length
-        );
-
-        if (relayState === "closed") {
-          // Relay is ON & Closed -> Purge stale TRIPPED string
-          if (finalCur > 2.0) {
-            alertMsg = `🚨 CRITICAL OVERLOAD: Load Current (${finalCur.toFixed(1)}A) exceeds 2.0A safety limit!`;
-          } else if (finalCur > 1.0) {
-            alertMsg = `⚠️ ELEVATED LOAD CURRENT: Load Current is ${finalCur.toFixed(1)}A. Substation operating normally.`;
-          } else if (isAllFailed) {
-            alertMsg = `⚠️ ESP32 Hardware Offline / Standby. AI Replicator active using 20-sample pattern.`;
-          } else if (!isVoltOk) {
-            alertMsg = `⚠️ VOLTAGE SENSOR FAULT: ZMPT101B disconnected. Replicating 20-sample voltage trend.`;
-          } else if (!isCurOk) {
-            alertMsg = `⚠️ CURRENT SENSOR FAULT: ACS712 disconnected. Replicating 20-sample load current trend.`;
-          } else if (!isTempOk) {
-            alertMsg = `⚠️ THERMAL SENSOR FAULT: DHT11 temperature sensor disconnected.`;
-          } else {
-            alertMsg = ""; // Clean nominal state
-          }
-        } else {
-          // Relay is TRIPPED
-          if (!alertMsg || !alertMsg.includes("TRIPPED")) {
-            alertMsg = "🚨 RELAY TRIPPED: Substation circuit interlock opened.";
-          }
-        }
-
-        const telemetryData: LiveReading = {
-          voltage: finalVolt,
-          current: finalCur,
-          temperature: finalTemp,
-          humidity: finalHum,
-          lat,
-          lng,
-          relayState,
-          health: isAnySensorFailed
-            ? `Pattern-based AI Replicator Active (${sampleCount}/20 Samples Observed)`
-            : String(blynkData.v7 || "Hardware Online"),
-          alertMsg,
-          googleMapUrl: `https://www.google.com/maps?q=${lat},${lng}`,
-          timestamp: new Date().toISOString(),
-          isReplicatedData: isAnySensorFailed,
-          sensorStatus,
-        };
-
-        setReading(telemetryData);
-        setIsHardwareOnline(true);
-        setIsReplicatedData(isAnySensorFailed);
-
-        // Sync sanitized snapshot to Cloud Firestore (permanently cleans stale Firestore record)
-        saveTelemetryToFirestore(telemetryData).catch(() => {});
-      } catch {
-        // Complete Connection Failure Fallback using 20-sample pattern
-        const sampleCount = Math.max(
-          sensorHistoryWindow.voltage.length,
-          sensorHistoryWindow.current.length
-        );
-
-        const predictedReading: LiveReading = {
-          voltage: predictFromPattern(sensorHistoryWindow.voltage, 119.5, 110.0, 130.0),
-          current: predictFromPattern(sensorHistoryWindow.current, 0.85, 0.0, 2.5),
-          temperature: predictFromPattern(sensorHistoryWindow.temperature, 28.4, 15.0, 75.0),
-          humidity: predictFromPattern(sensorHistoryWindow.humidity, 62.0, 30.0, 90.0),
-          lat: DEFAULT_LAT,
-          lng: DEFAULT_LNG,
-          relayState: "closed",
-          health: `Pattern-based AI Replicator Active (${sampleCount}/20 Samples Observed)`,
-          alertMsg: `⚠️ ESP32 Hardware Offline / Standby. AI pattern predictor active.`,
-          googleMapUrl: `https://www.google.com/maps?q=${DEFAULT_LAT},${DEFAULT_LNG}`,
-          timestamp: new Date().toISOString(),
-          isReplicatedData: true,
-          sensorStatus: {
-            voltage: "replicated",
-            current: "replicated",
-            temperature: "replicated",
-            humidity: "replicated",
-          },
-        };
-
-        setReading(predictedReading);
-        setIsHardwareOnline(true);
-        setIsReplicatedData(true);
-      }
-    }, 3000);
 
     return () => {
-      unsubscribeWs();
+      isSubscribed = false;
+      clearInterval(interval);
       unsubscribeFb();
-      clearInterval(blynkPoller);
+      unsubscribeWs();
     };
   }, []);
 
-  const result = { ...reading } as any;
-  result.isHardwareOnline = isHardwareOnline;
-  result.isReplicatedData = isReplicatedData;
-  return result;
+  return reading;
 }
 
 export function useDevice(): TransformerDevice {
   const [device, setDevice] = useState<TransformerDevice>(INITIAL_DEVICE);
 
   useEffect(() => {
+    // Local Backend API
     apiRequest<TransformerDevice>("/device")
       .then((data) => setDevice(data))
       .catch(() => {});
 
-    const unsubscribeWs = subscribeWebSocket((event) => {
-      if (event.type === "DEVICE_UPDATED" && event.data) {
-        setDevice(event.data);
+    // Firebase Device Listener
+    const unsubscribeFb = subscribeFirebaseLiveDevice((fbData: any) => {
+      if (fbData) {
+        setDevice((prev) => ({
+          ...prev,
+          name: fbData.name || prev.name,
+          location: fbData.location || prev.location,
+          lat: fbData.lat || prev.lat,
+          lng: fbData.lng || prev.lng,
+          online: fbData.online ?? prev.online,
+          googleMapsLink: fbData.googleMapUrl || prev.googleMapsLink,
+          lastUpdated: fbData.lastUpdated || prev.lastUpdated,
+        }));
       }
     });
 
-    const unsubscribeFb = subscribeFirebaseLiveDevice((devData: any) => {
-      if (devData) {
-        setDevice((prev) => ({
-          ...prev,
-          name: devData.name || prev.name,
-          location: devData.location || prev.location,
-          lat: devData.lat || DEFAULT_LAT,
-          lng: devData.lng || DEFAULT_LNG,
-          status: devData.status || (devData.current > 2.0 ? "critical" : devData.current > 1.0 ? "warning" : "normal"),
-          online: Boolean((devData.voltage || 0) > 0 || (devData.current || 0) > 0 || devData.isReplicatedData),
-          lastUpdated: devData.lastUpdated || new Date().toISOString(),
-          googleMapsLink: devData.googleMapUrl || `https://www.google.com/maps?q=${DEFAULT_LAT},${DEFAULT_LNG}`,
-        }));
+    const unsubscribeWs = subscribeWebSocket((event) => {
+      if (event.type === "DEVICE_UPDATED") {
+        setDevice((prev) => ({ ...prev, ...event.data }));
       }
     });
 
@@ -377,9 +303,9 @@ export function useRelayStatus(): RelayStatus & {
     lastTripReason: "System Nominal",
     lastTripAt: new Date().toISOString(),
     thresholds: {
-      maxTemperature: 90,
-      maxCurrent: 50,
-      maxVoltage: 260,
+      maxTemperature: 60,
+      maxCurrent: 1.5,
+      maxVoltage: 115,
     },
   });
 
@@ -475,7 +401,7 @@ export function useAlerts(): AlertItem[] & {
   useEffect(() => {
     fetchAlerts();
     const unsubscribe = subscribeWebSocket((event) => {
-      if (event.type === "NEW_ALERT" || event.type === "ALERT_UPDATED" || event.type === "RELAY_TRIPPED") {
+      if (event.type === "NEW_ALERT" || event.type === "ALERT_STATUS_CHANGED") {
         fetchAlerts();
       }
     });
