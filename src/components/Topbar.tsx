@@ -109,7 +109,7 @@ export function Topbar({ onOpenMobileDrawer }: { onOpenMobileDrawer?: () => void
   };
 
   return (
-    <header className="h-14 shrink-0 border-b border-outline-variant bg-surface-container-lowest flex items-center justify-between px-2 sm:px-md relative z-40 w-full overflow-hidden">
+    <header className="h-14 shrink-0 border-b border-outline-variant bg-surface-container-lowest flex items-center justify-between px-2 sm:px-md relative z-40 w-full">
       
       {/* Mobile Drawer Toggle & Transformer Selector */}
       <div className="flex items-center gap-1.5 sm:gap-2 shrink min-w-0">
@@ -144,7 +144,7 @@ export function Topbar({ onOpenMobileDrawer }: { onOpenMobileDrawer?: () => void
           </button>
 
           {deviceDropdownOpen && (
-            <div className="absolute top-11 left-0 w-64 sm:w-72 max-w-[calc(100vw-1.5rem)] bg-surface-container-lowest border border-outline-variant rounded-xl shadow-xl p-2 flex flex-col gap-1 z-50 animate-in fade-in duration-150">
+            <div className="absolute top-11 left-0 w-64 sm:w-72 max-w-[calc(100vw-1.5rem)] bg-surface-container-lowest border border-outline-variant rounded-xl shadow-2xl p-2 flex flex-col gap-1 z-50 animate-in fade-in duration-150">
               <span className="text-label-sm font-semibold uppercase text-on-surface-variant px-2 py-1">
                 Select Active Transformer
               </span>
@@ -180,7 +180,7 @@ export function Topbar({ onOpenMobileDrawer }: { onOpenMobileDrawer?: () => void
         </div>
       </div>
 
-      {/* Right Side Control Bar (Streamlined on Mobile for maximum space) */}
+      {/* Right Side Control Bar */}
       <div className="flex items-center gap-1.5 sm:gap-2 shrink-0 ml-auto">
         
         {/* Test Alert Button (Desktop/Tablet Only) */}
@@ -193,7 +193,7 @@ export function Topbar({ onOpenMobileDrawer }: { onOpenMobileDrawer?: () => void
           <span>Test Emergency Pop-Up</span>
         </button>
 
-        {/* Theme Switcher (Desktop Only - Moved to Mobile Drawer on Mobile) */}
+        {/* Theme Switcher (Desktop Only) */}
         <button
           onClick={toggleTheme}
           aria-label="Toggle dark mode"
@@ -203,24 +203,25 @@ export function Topbar({ onOpenMobileDrawer }: { onOpenMobileDrawer?: () => void
         </button>
 
         {/* Notification Bell */}
-        <div className="relative shrink-0" ref={notificationDropdownRef}>
+        <div className="relative shrink-0 z-50" ref={notificationDropdownRef}>
           <button
+            type="button"
             onClick={() => {
-              setNotificationDropdownOpen(!notificationDropdownOpen);
+              setNotificationDropdownOpen((prev) => !prev);
               setDeviceDropdownOpen(false);
               setUserDropdownOpen(false);
             }}
             aria-label="Notifications"
-            className="relative h-8 w-8 flex items-center justify-center rounded-lg hover:bg-surface-container text-on-surface-variant transition-colors cursor-pointer"
+            className="relative h-9 w-9 flex items-center justify-center rounded-lg bg-surface-container/60 hover:bg-surface-container border border-outline-variant/60 text-on-surface transition-colors cursor-pointer active:scale-95"
           >
-            <Bell size={15} />
+            <Bell size={16} />
             {alerts.length > 0 && (
-              <span className="absolute top-1 right-1 h-2 w-2 rounded-full bg-error animate-pulse" />
+              <span className="absolute top-1 right-1 h-2.5 w-2.5 rounded-full bg-error animate-pulse" />
             )}
           </button>
 
           {notificationDropdownOpen && (
-            <div className="absolute top-11 right-0 w-72 sm:w-96 max-w-[calc(100vw-1.5rem)] bg-surface-container-lowest border border-outline-variant rounded-xl shadow-xl p-3 flex flex-col gap-2 z-50 animate-in fade-in duration-150">
+            <div className="absolute top-11 right-0 w-72 sm:w-96 max-w-[calc(100vw-1.5rem)] bg-surface-container-lowest border border-outline-variant rounded-xl shadow-2xl p-3 flex flex-col gap-2 z-50 animate-in fade-in duration-150">
               <div className="flex items-center justify-between border-b border-outline-variant/60 pb-2">
                 <div className="flex items-center gap-2">
                   <Bell size={15} className="text-primary" />
@@ -283,7 +284,7 @@ export function Topbar({ onOpenMobileDrawer }: { onOpenMobileDrawer?: () => void
           )}
         </div>
 
-        {/* Multi-Language Selector Badge (Desktop Only - Moved to Mobile Drawer on Mobile) */}
+        {/* Multi-Language Selector Badge (Desktop Only) */}
         <button
           onClick={() => setLanguage(nextLang[language])}
           title="Switch Language (English / हिंदी / मराठी)"
@@ -294,26 +295,27 @@ export function Topbar({ onOpenMobileDrawer }: { onOpenMobileDrawer?: () => void
         </button>
 
         {/* User Profile Avatar Button */}
-        <div className="relative shrink-0" ref={userDropdownRef}>
+        <div className="relative shrink-0 z-50" ref={userDropdownRef}>
           <button
+            type="button"
             onClick={() => {
-              setUserDropdownOpen(!userDropdownOpen);
+              setUserDropdownOpen((prev) => !prev);
               setDeviceDropdownOpen(false);
               setNotificationDropdownOpen(false);
             }}
-            className="h-8 px-2 rounded-lg bg-primary/10 border border-primary/30 flex items-center gap-1.5 hover:bg-primary/20 transition-colors cursor-pointer shrink-0"
+            className="h-9 px-2 rounded-lg bg-primary/10 border border-primary/30 flex items-center gap-1.5 hover:bg-primary/20 transition-colors cursor-pointer shrink-0 active:scale-95"
           >
-            <div className="h-5 w-5 rounded-full bg-primary text-on-primary flex items-center justify-center font-bold text-[11px] shrink-0">
-              {user?.name ? user.name.charAt(0).toUpperCase() : <User size={13} />}
+            <div className="h-6 w-6 rounded-full bg-primary text-on-primary flex items-center justify-center font-bold text-xs shrink-0">
+              {user?.name ? user.name.charAt(0).toUpperCase() : <User size={14} />}
             </div>
             <span className="text-xs font-bold text-on-surface hidden md:inline max-w-[80px] truncate">{user?.name || "Member"}</span>
             <ChevronDown size={13} className="text-on-surface-variant shrink-0" />
           </button>
 
           {userDropdownOpen && (
-            <div className="absolute top-11 right-0 w-60 max-w-[calc(100vw-1.5rem)] bg-surface-container-lowest border border-outline-variant rounded-xl shadow-xl p-3 flex flex-col gap-2 z-50 animate-in fade-in duration-150">
+            <div className="absolute top-11 right-0 w-64 max-w-[calc(100vw-1.5rem)] bg-surface-container-lowest border border-outline-variant rounded-xl shadow-2xl p-3 flex flex-col gap-2 z-50 animate-in fade-in duration-150">
               <div className="flex items-center gap-2.5 pb-2 border-b border-outline-variant/60">
-                <div className="h-8 w-8 rounded-full bg-primary/20 text-primary flex items-center justify-center font-bold text-xs shrink-0">
+                <div className="h-9 w-9 rounded-full bg-primary/20 text-primary flex items-center justify-center font-bold text-sm shrink-0">
                   {user?.name ? user.name.charAt(0).toUpperCase() : "M"}
                 </div>
                 <div className="flex flex-col min-w-0">
@@ -325,7 +327,7 @@ export function Topbar({ onOpenMobileDrawer }: { onOpenMobileDrawer?: () => void
 
               <button
                 onClick={handleLogout}
-                className="w-full py-2 px-3 rounded-lg bg-error/10 hover:bg-error/20 text-error font-bold text-xs flex items-center justify-between transition-colors cursor-pointer mt-1"
+                className="w-full py-2.5 px-3 rounded-lg bg-error/10 hover:bg-error/20 text-error font-bold text-xs flex items-center justify-between transition-colors cursor-pointer mt-1"
               >
                 <span>Sign Out Account</span>
                 <LogOut size={14} />
