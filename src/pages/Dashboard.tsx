@@ -4,6 +4,7 @@ import { StatusBadge } from "@/components/StatusBadge";
 import { useAlerts, useDevice, useLiveReading, useRelayStatus, useHistory } from "@/hooks/useSensorData";
 import { useLanguage } from "@/context/LanguageContext";
 import { PredictiveAnalyticsCard } from "@/components/PredictiveAnalyticsCard";
+import { DigitalTwin3D } from "@/components/DigitalTwin3D";
 import type { AlertItem } from "@/lib/types";
 
 const fallbackAlerts: AlertItem[] = [
@@ -39,39 +40,25 @@ const fallbackAlerts: AlertItem[] = [
     timestamp: new Date(Date.now() - 45 * 60 * 1000).toISOString(),
     status: "acknowledged",
   },
-  {
-    id: "alt-05",
-    severity: "info",
-    title: "Protection Interlock Armed",
-    description: "Automatic current threshold interlock set to 2.0A safety limit.",
-    timestamp: new Date(Date.now() - 60 * 60 * 1000).toISOString(),
-    status: "resolved",
-  },
 ];
 
 export default function Dashboard() {
-  const device = useDevice();
   const reading = useLiveReading();
+  const device = useDevice();
   const relay = useRelayStatus();
   const alertsData = useAlerts();
   const historyData = useHistory("day");
-  
-  const rawAlerts = Array.isArray(alertsData) ? alertsData : [];
-  const alerts = (rawAlerts.length > 0 ? rawAlerts : fallbackAlerts).slice(0, 5);
-  
   const { t } = useLanguage();
 
-  const mapUrl = reading.googleMapUrl || device.googleMapsLink || `https://maps.google.com/?q=${reading.lat || device.lat},${reading.lng || device.lng}`;
-  
+  const alertsList = Array.isArray(alertsData) && alertsData.length > 0 ? alertsData : fallbackAlerts;
   const isOnline = Boolean(reading.voltage > 0 || reading.current > 0);
   const isReplicated = Boolean(reading.isReplicatedData);
+  const mapUrl = reading.googleMapUrl || device.googleMapsLink || `https://maps.google.com/?q=${reading.lat || device.lat},${reading.lng || device.lng}`;
 
-  const recentTelemetryLogs = (Array.isArray(historyData) && historyData.length > 0 ? historyData : [
+  const recentLogs = (Array.isArray(historyData) && historyData.length > 0 ? historyData : [
     { time: new Date().toLocaleTimeString(), voltage: reading.voltage || 120.0, current: reading.current || 1.2, temperature: reading.temperature || 25.0, humidity: reading.humidity || 64.0 },
     { time: new Date(Date.now() - 3000).toLocaleTimeString(), voltage: 119.5, current: 1.1, temperature: 24.8, humidity: 63.8 },
     { time: new Date(Date.now() - 6000).toLocaleTimeString(), voltage: 120.8, current: 1.2, temperature: 24.9, humidity: 64.1 },
-    { time: new Date(Date.now() - 9000).toLocaleTimeString(), voltage: 121.2, current: 1.0, temperature: 25.1, humidity: 64.2 },
-    { time: new Date(Date.now() - 12000).toLocaleTimeString(), voltage: 118.9, current: 0.9, temperature: 24.7, humidity: 63.9 },
   ]).slice(-5).reverse();
 
   return (
@@ -79,13 +66,19 @@ export default function Dashboard() {
       <div className="flex items-center justify-between">
         <div>
           <div className="flex items-center gap-2">
-            <h1 className="text-headline-lg text-on-surface">{device.name}</h1>
+            <h1 className="text-headline-lg text-on-surface">{t("dashboard.title")}</h1>
             <StatusBadge status={!isOnline ? "warning" : reading.current > 2.0 ? "critical" : reading.current > 1.0 ? "warning" : "normal"} />
           </div>
           <p className="text-body-sm text-on-surface-variant mt-1">
             {device.id} &middot; {device.location} &middot; updated{" "}
             {new Date(reading.timestamp).toLocaleTimeString()}
           </p>
+        </div>
+        <div className={`flex items-center gap-2 px-3 py-1 rounded-full text-xs font-bold font-mono border ${
+          isOnline ? "bg-success/15 border-success/30 text-success" : "bg-warning/15 border-warning/30 text-warning"
+        }`}>
+          <span className={`h-2 w-2 rounded-full ${isOnline ? "bg-success animate-pulse" : "bg-warning"}`} />
+          <span>{isOnline ? (isReplicated ? "AI Sync" : "Live Streaming") : "Offline / Standby"}</span>
         </div>
       </div>
 
@@ -134,6 +127,9 @@ export default function Dashboard() {
         </div>
       </div>
 
+      {/* 3D WebGL Transformer Digital Twin Model */}
+      <DigitalTwin3D />
+
       {/* Machine Learning Predictive Maintenance Card */}
       <PredictiveAnalyticsCard />
 
@@ -158,32 +154,29 @@ export default function Dashboard() {
         <MetricTile label={t("dashboard.device")} value={isOnline ? (isReplicated ? "AI Sync" : t("dashboard.online")) : t("dashboard.offline")} icon={Wifi} status={isOnline ? "normal" : undefined} />
       </div>
 
-      {/* Recent Telemetry Real-Time Log Table */}
+      {/* Live Stream Log Points Table */}
       <div className="rounded-xl border border-outline-variant bg-surface-container-lowest overflow-hidden shadow-sm">
         <div className="flex items-center justify-between px-md h-11 border-b border-outline-variant bg-surface-container/30">
           <div className="flex items-center gap-2">
             <Clock size={16} className="text-primary" />
             <h2 className="text-label-md font-bold text-on-surface">Recent Live Telemetry Stream Logs</h2>
           </div>
-          <a href="/analytics" className="text-body-sm text-primary font-bold hover:underline">
-            View Analytics Charts &rarr;
-          </a>
         </div>
         <div className="overflow-x-auto">
-          <table className="w-full text-body-sm">
+          <table className="w-full text-body-sm font-mono">
             <thead>
               <tr className="text-left text-label-sm uppercase text-on-surface-variant border-b border-outline-variant bg-surface-container/20">
                 <th className="px-md py-sm font-semibold">Timestamp</th>
-                <th className="px-md py-sm font-semibold">Voltage (V)</th>
-                <th className="px-md py-sm font-semibold">Current (A)</th>
-                <th className="px-md py-sm font-semibold">Temperature (°C)</th>
-                <th className="px-md py-sm font-semibold">Humidity (%)</th>
-                <th className="px-md py-sm font-semibold">Data Stream Source</th>
+                <th className="px-md py-sm font-semibold">Voltage</th>
+                <th className="px-md py-sm font-semibold">Current</th>
+                <th className="px-md py-sm font-semibold">Temperature</th>
+                <th className="px-md py-sm font-semibold">Humidity</th>
+                <th className="px-md py-sm font-semibold">Stream Source</th>
               </tr>
             </thead>
             <tbody>
-              {recentTelemetryLogs.map((log, idx) => (
-                <tr key={idx} className="border-b border-outline-variant/60 last:border-0 hover:bg-surface-container/20 transition-colors font-mono">
+              {recentLogs.map((log, idx) => (
+                <tr key={idx} className="border-b border-outline-variant/60 last:border-0 hover:bg-surface-container/20">
                   <td className="px-md py-sm text-on-surface font-bold">{log.time}</td>
                   <td className="px-md py-sm text-primary font-bold">{log.voltage.toFixed(1)} V</td>
                   <td className="px-md py-sm text-warning font-bold">{log.current.toFixed(1)} A</td>
@@ -203,39 +196,32 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* Recent Alerts Table */}
-      <div className="rounded-xl border border-outline-variant bg-surface-container-lowest overflow-hidden shadow-sm">
-        <div className="flex items-center justify-between px-md h-11 border-b border-outline-variant bg-surface-container/30">
-          <h2 className="text-label-md font-bold text-on-surface">{t("dashboard.recentAlerts")}</h2>
-          <a href="/alerts" className="text-body-sm text-primary font-bold hover:underline">
-            {t("dashboard.viewAll")}
-          </a>
-        </div>
-        <div className="overflow-x-auto">
-          <table className="w-full text-body-sm">
-            <thead>
-              <tr className="text-left text-label-sm uppercase text-on-surface-variant border-b border-outline-variant bg-surface-container/20">
-                <th className="px-md py-sm font-semibold">{t("dashboard.severity")}</th>
-                <th className="px-md py-sm font-semibold">{t("dashboard.alert")}</th>
-                <th className="px-md py-sm font-semibold">{t("dashboard.time")}</th>
-                <th className="px-md py-sm font-semibold">{t("dashboard.status")}</th>
-              </tr>
-            </thead>
-            <tbody>
-              {alerts.map((a) => (
-                <tr key={a.id} className="border-b border-outline-variant/60 last:border-0 hover:bg-surface-container/20 transition-colors">
-                  <td className="px-md py-sm">
-                    <StatusBadge status={a.severity === "critical" ? "critical" : a.severity === "warning" ? "warning" : "info"} />
-                  </td>
-                  <td className="px-md py-sm text-on-surface font-medium">{a.title}</td>
-                  <td className="px-md py-sm text-on-surface-variant font-mono">
-                    {new Date(a.timestamp).toLocaleTimeString()}
-                  </td>
-                  <td className="px-md py-sm text-on-surface-variant capitalize font-semibold">{a.status}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+      {/* Active Notifications & Alarms Grid */}
+      <div className="rounded-xl border border-outline-variant bg-surface-container-lowest p-md flex flex-col gap-sm shadow-sm">
+        <h2 className="text-label-md font-bold text-on-surface uppercase tracking-wider">
+          Substation System Alerts ({alertsList.length})
+        </h2>
+        <div className="flex flex-col gap-sm">
+          {alertsList.slice(0, 4).map((alert) => (
+            <div
+              key={alert.id}
+              className={`p-sm rounded-lg border flex items-center justify-between text-body-sm transition-all ${
+                alert.severity === "critical"
+                  ? "bg-error/15 border-error/30 text-error"
+                  : alert.severity === "warning"
+                  ? "bg-warning/15 border-warning/30 text-warning"
+                  : "bg-surface-container/40 border-outline-variant/40 text-on-surface-variant"
+              }`}
+            >
+              <div>
+                <span className="font-bold block text-on-surface">{alert.title}</span>
+                <span className="text-xs opacity-80">{alert.description}</span>
+              </div>
+              <span className="font-mono text-xs opacity-70 shrink-0 ml-2">
+                {new Date(alert.timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+              </span>
+            </div>
+          ))}
         </div>
       </div>
 

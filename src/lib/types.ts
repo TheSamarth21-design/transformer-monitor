@@ -1,4 +1,5 @@
 export type HealthStatus = "normal" | "warning" | "critical";
+export type AlertStatus = "active" | "acknowledged" | "resolved";
 
 export interface LiveReading {
   voltage: number; // V (V3)
@@ -9,6 +10,7 @@ export interface LiveReading {
   lng?: number; // (V5)
   relayState?: "closed" | "tripped"; // (V6)
   health?: string; // (V7) e.g. "Critical (30%)"
+  healthScore?: number; // 0 - 100 Health Index
   alertMsg?: string; // (V8) e.g. "TRIPPED: Manual Remote Shutdown"
   googleMapUrl?: string; // (V9)
   timestamp: string;
@@ -33,13 +35,19 @@ export interface TransformerDevice {
   googleMapsLink?: string;
 }
 
-export type RelayState = "closed" | "tripped";
+export interface HistoryPoint {
+  time: string;
+  voltage: number;
+  current: number;
+  temperature: number;
+  humidity: number;
+}
 
 export interface RelayStatus {
-  state: RelayState;
+  state: "closed" | "tripped";
   autoTripEnabled: boolean;
-  lastTripReason: string | null;
-  lastTripAt: string | null;
+  lastTripReason: string;
+  lastTripAt: string;
   thresholds: {
     maxTemperature: number;
     maxCurrent: number;
@@ -51,25 +59,15 @@ export interface RelayEvent {
   id: string;
   timestamp: string;
   cause: string;
-  durationMinutes: number;
+  duration_minutes?: number;
+  durationMinutes?: number;
 }
-
-export type AlertSeverity = "info" | "warning" | "critical";
-export type AlertStatus = "active" | "acknowledged" | "resolved";
 
 export interface AlertItem {
   id: string;
-  severity: AlertSeverity;
+  severity: "info" | "warning" | "critical";
   title: string;
   description: string;
   timestamp: string;
   status: AlertStatus;
-}
-
-export interface HistoryPoint {
-  time: string;
-  voltage: number;
-  current: number;
-  temperature: number;
-  humidity: number;
 }
