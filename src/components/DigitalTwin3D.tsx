@@ -10,14 +10,33 @@ export function DigitalTwin3D() {
   const [selectedPart, setSelectedPart] = useState<{
     name: string;
     description: string;
-    metrics: string;
-    status: "normal" | "warning" | "critical";
+    type: "tank" | "bushing" | "relay" | "radiator" | "conservator";
   }>({
     name: "Transformer Main Unit",
     description: "Primary core housing and dielectric cooling assembly.",
-    metrics: `Temperature: ${liveReading.temperature.toFixed(1)}°C | Health: ${liveReading.healthScore || 95}%`,
-    status: liveReading.temperature > 60 ? "warning" : "normal",
+    type: "tank",
   });
+
+  // Dynamically compute real-time metrics string for the active selected part
+  const currentTemp = typeof liveReading.temperature === "number" && liveReading.temperature > 0 ? liveReading.temperature : 25.0;
+  const currentVolt = typeof liveReading.voltage === "number" ? liveReading.voltage : 120.0;
+  const currentAmp = typeof liveReading.current === "number" ? liveReading.current : 1.2;
+  const currentRelay = liveReading.relayState?.toUpperCase() || "CLOSED";
+  const currentHealth = liveReading.healthScore || 95;
+
+  let activeMetrics = `Temperature: ${currentTemp.toFixed(1)}°C | Health: ${currentHealth}%`;
+  let activeStatus: "normal" | "warning" | "critical" = currentTemp > 60 ? "warning" : "normal";
+
+  if (selectedPart.type === "bushing") {
+    activeMetrics = `Line Voltage: ${currentVolt.toFixed(1)}V | Load Current: ${currentAmp.toFixed(1)}A`;
+    activeStatus = currentAmp > 1.0 ? "warning" : "normal";
+  } else if (selectedPart.type === "relay") {
+    activeMetrics = `Relay Interlock: ${currentRelay}`;
+    activeStatus = liveReading.relayState === "closed" ? "normal" : "critical";
+  } else if (selectedPart.type === "radiator" || selectedPart.type === "conservator") {
+    activeMetrics = `Humidity: ${liveReading.humidity?.toFixed(1) || "64.0"}% | Cooling Flow Nominal`;
+    activeStatus = "normal";
+  }
 
   useEffect(() => {
     if (!mountRef.current) return;
@@ -62,9 +81,9 @@ export function DigitalTwin3D() {
 
     // A. Main Transformer Tank
     const tempColor =
-      liveReading.temperature > 70
+      currentTemp > 70
         ? 0xef4444
-        : liveReading.temperature > 55
+        : currentTemp > 55
         ? 0xf97316
         : 0x0284c7;
 
@@ -78,17 +97,17 @@ export function DigitalTwin3D() {
     tankMesh.position.y = 0;
     tankMesh.userData = {
       name: "Transformer Main Unit",
-      description: "Primary magnetic core housing and dielectric cooling assembly.",
+      description: "Primary core housing and dielectric cooling assembly.",
       type: "tank",
     };
     transformerGroup.add(tankMesh);
 
     // B. High-Voltage Bushings (3 Top Conductors)
     const bushingMat = new THREE.MeshStandardMaterial({
-      color: liveReading.voltage > 100 ? 0x38bdf8 : 0x64748b,
+      color: currentVolt > 100 ? 0x38bdf8 : 0x64748b,
       roughness: 0.2,
       metalness: 0.8,
-      emissive: liveReading.voltage > 100 ? 0x0284c7 : 0x000000,
+      emissive: currentVolt > 100 ? 0x0284c7 : 0x000000,
       emissiveIntensity: 0.4,
     });
 
@@ -175,28 +194,10 @@ export function DigitalTwin3D() {
       if (intersects.length > 0) {
         const target = intersects[0].object;
         if (target.userData && target.userData.name) {
-          const type = target.userData.type;
-          let metricsStr = "";
-          let statusVal: "normal" | "warning" | "critical" = "normal";
-
-          if (type === "tank") {
-            metricsStr = `Temperature: ${liveReading.temperature.toFixed(1)}°C | Health Index: ${liveReading.healthScore || 95}%`;
-            statusVal = liveReading.temperature > 60 ? "warning" : "normal";
-          } else if (type === "bushing") {
-            metricsStr = `Line Voltage: ${liveReading.voltage.toFixed(1)}V | Load Current: ${liveReading.current.toFixed(1)}A`;
-            statusVal = liveReading.current > 1.0 ? "warning" : "normal";
-          } else if (type === "relay") {
-            metricsStr = `Relay Interlock: ${liveReading.relayState?.toUpperCase() || "CLOSED"}`;
-            statusVal = liveReading.relayState === "closed" ? "normal" : "critical";
-          } else {
-            metricsStr = `Humidity: ${liveReading.humidity.toFixed(1)}% | Signal: -52 dBm`;
-          }
-
           setSelectedPart({
             name: target.userData.name,
             description: target.userData.description,
-            metrics: metricsStr,
-            status: statusVal,
+            type: target.userData.type || "tank",
           });
         }
       }
@@ -256,7 +257,7 @@ export function DigitalTwin3D() {
       window.removeEventListener("mouseup", onMouseUp);
       renderer.dispose();
     };
-  }, [liveReading.temperature, liveReading.voltage, liveReading.current, liveReading.relayState, liveReading.healthScore]);
+  }, [currentTemp, currentVolt, currentAmp, liveReading.relayState, currentHealth]);
 
   return (
     <div className="rounded-xl border border-outline-variant bg-surface-container-lowest p-md flex flex-col gap-md shadow-sm">
@@ -296,49 +297,49 @@ export function DigitalTwin3D() {
           <span>Click & Drag to Rotate 3D Model | Click Component to Inspect</span>
         </div>
 
-        {/* Floating Interactive HUD Component Detail Card */}
+        {/* Floating Interactive HUD Component Detail Card (Dynamically updated with live temperature!) */}
         <div className="absolute top-3 right-3 max-w-xs bg-slate-900/90 border border-slate-700/80 rounded-xl p-3 shadow-xl backdrop-blur-md flex flex-col gap-1.5 text-xs text-white">
           <div className="flex items-center justify-between border-b border-slate-800 pb-1">
             <span className="font-bold text-primary truncate">{selectedPart.name}</span>
             <span
               className={`text-[10px] font-bold px-1.5 py-0.5 rounded uppercase ${
-                selectedPart.status === "critical"
+                activeStatus === "critical"
                   ? "bg-error/20 text-error"
-                  : selectedPart.status === "warning"
+                  : activeStatus === "warning"
                   ? "bg-warning/20 text-warning"
                   : "bg-success/20 text-success"
               }`}
             >
-              {selectedPart.status}
+              {activeStatus}
             </span>
           </div>
           <p className="text-[11px] text-slate-300 leading-tight">{selectedPart.description}</p>
           <div className="pt-1 text-[11px] font-mono font-bold text-sky-400 border-t border-slate-800/60">
-            {selectedPart.metrics}
+            {activeMetrics}
           </div>
         </div>
 
       </div>
 
-      {/* Live 3D Twin Legend Bar (Synced directly with Blynk Live Readings) */}
+      {/* Live 3D Twin Legend Bar */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-sm text-xs font-mono">
         <div className="p-2 rounded-lg bg-surface-container/30 border border-outline-variant/40 flex items-center gap-2">
           <div className="h-3 w-3 rounded-full bg-sky-500 animate-pulse" />
           <div>
             <span className="text-on-surface-variant text-[11px] block">Primary Bushings</span>
-            <span className="font-bold text-on-surface">{liveReading.voltage.toFixed(1)} V Active</span>
+            <span className="font-bold text-on-surface">{currentVolt.toFixed(1)} V Active</span>
           </div>
         </div>
 
         <div className="p-2 rounded-lg bg-surface-container/30 border border-outline-variant/40 flex items-center gap-2">
           <div
             className={`h-3 w-3 rounded-full ${
-              liveReading.temperature > 60 ? "bg-amber-500" : "bg-sky-500"
+              currentTemp > 60 ? "bg-amber-500" : "bg-sky-500"
             }`}
           />
           <div>
             <span className="text-on-surface-variant text-[11px] block">Temperature</span>
-            <span className="font-bold text-on-surface">{liveReading.temperature.toFixed(1)} °C</span>
+            <span className="font-bold text-on-surface">{currentTemp.toFixed(1)} °C</span>
           </div>
         </div>
 
@@ -351,7 +352,7 @@ export function DigitalTwin3D() {
           <div>
             <span className="text-on-surface-variant text-[11px] block">Relay Interlock</span>
             <span className="font-bold text-on-surface">
-              {liveReading.relayState?.toUpperCase() || "CLOSED"}
+              {currentRelay}
             </span>
           </div>
         </div>
@@ -360,7 +361,7 @@ export function DigitalTwin3D() {
           <div className="h-3 w-3 rounded-full bg-emerald-500" />
           <div>
             <span className="text-on-surface-variant text-[11px] block">Health Index</span>
-            <span className="font-bold text-on-surface">{liveReading.healthScore || 95}% Nominal</span>
+            <span className="font-bold text-on-surface">{currentHealth}% Nominal</span>
           </div>
         </div>
       </div>
