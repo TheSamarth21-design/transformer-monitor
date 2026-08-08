@@ -4,6 +4,10 @@
   "webDir": "dist",
   "server": {
     "url": "https://transformer-monitor.vercel.app",
-    "cleartext": true
+    "cleartext": true,
+    "allowNavigation": [
+      "transformer-monitor.vercel.app",
+      "*.vercel.app"
+    ]
   }
 }
