@@ -120,9 +120,19 @@ export function useLiveReading(): LiveReading & { isHardwareOnline: boolean; isR
       }
     });
 
-    // 3. Cloud Firestore Realtime Sync
+    // 3. Cloud Firestore Realtime Sync (with strict TRIPPED message sanitization when online)
     const unsubscribeFb = subscribeFirebaseLiveDevice((devData: any) => {
       if (devData) {
+        const isClosed = devData.relayState === "closed" || (devData.current || 0) <= 2.0;
+        let cleanAlert = devData.alertMsg || "";
+
+        // Purge stale TRIPPED strings if hardware relay is closed / normal
+        if (isClosed && cleanAlert.includes("TRIPPED")) {
+          cleanAlert = devData.current > 1.0
+            ? `⚠️ ELEVATED LOAD CURRENT: Load Current is ${devData.current.toFixed(1)}A.`
+            : "";
+        }
+
         setReading((prev) => ({
           ...prev,
           voltage: devData.voltage ?? prev.voltage,
@@ -132,12 +142,13 @@ export function useLiveReading(): LiveReading & { isHardwareOnline: boolean; isR
           lat: devData.lat || DEFAULT_LAT,
           lng: devData.lng || DEFAULT_LNG,
           health: devData.health ?? prev.health,
-          alertMsg: devData.alertMsg ?? prev.alertMsg,
+          alertMsg: cleanAlert,
           googleMapUrl: devData.googleMapUrl || `https://www.google.com/maps?q=${DEFAULT_LAT},${DEFAULT_LNG}`,
           timestamp: devData.lastUpdated ?? new Date().toISOString(),
           isReplicatedData: devData.isReplicatedData ?? false,
           sensorStatus: devData.sensorStatus || prev.sensorStatus,
         }));
+
         setIsHardwareOnline(Boolean((devData.voltage || 0) > 0 || (devData.current || 0) > 0));
         setIsReplicatedData(Boolean(devData.isReplicatedData));
       }
@@ -222,7 +233,7 @@ export function useLiveReading(): LiveReading & { isHardwareOnline: boolean; isR
         );
 
         if (relayState === "closed") {
-          // Relay is ON & Closed -> Ignore stale TRIPPED string from V8
+          // Relay is ON & Closed -> Purge stale TRIPPED string
           if (finalCur > 2.0) {
             alertMsg = `🚨 CRITICAL OVERLOAD: Load Current (${finalCur.toFixed(1)}A) exceeds 2.0A safety limit!`;
           } else if (finalCur > 1.0) {
@@ -267,7 +278,7 @@ export function useLiveReading(): LiveReading & { isHardwareOnline: boolean; isR
         setIsHardwareOnline(true);
         setIsReplicatedData(isAnySensorFailed);
 
-        // Sync snapshot to Cloud Firestore (with real/replicated tags)
+        // Sync sanitized snapshot to Cloud Firestore (permanently cleans stale Firestore record)
         saveTelemetryToFirestore(telemetryData).catch(() => {});
       } catch {
         // Complete Connection Failure Fallback using 20-sample pattern
