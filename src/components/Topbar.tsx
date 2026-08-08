@@ -112,12 +112,12 @@ export function Topbar({ onOpenMobileDrawer }: { onOpenMobileDrawer?: () => void
     <header className="h-14 shrink-0 border-b border-outline-variant bg-surface-container-lowest flex items-center justify-between px-2 sm:px-md relative z-40 w-full overflow-hidden">
       
       {/* Mobile Drawer Toggle & Transformer Selector */}
-      <div className="flex items-center gap-1 sm:gap-2 shrink min-w-0">
+      <div className="flex items-center gap-1.5 sm:gap-2 shrink min-w-0">
         {onOpenMobileDrawer && (
           <button
             onClick={onOpenMobileDrawer}
             aria-label="Open Navigation Menu"
-            className="md:hidden h-9 w-9 flex items-center justify-center rounded-lg hover:bg-surface-container text-on-surface cursor-pointer shrink-0"
+            className="md:hidden h-9 w-9 flex items-center justify-center rounded-lg bg-surface-container border border-outline-variant text-on-surface hover:bg-surface-container-high cursor-pointer shrink-0"
           >
             <Menu size={20} />
           </button>
@@ -130,11 +130,11 @@ export function Topbar({ onOpenMobileDrawer }: { onOpenMobileDrawer?: () => void
               setNotificationDropdownOpen(false);
               setUserDropdownOpen(false);
             }}
-            className="flex items-center gap-1 rounded-lg border border-outline-variant px-1.5 sm:px-2 h-9 text-xs sm:text-body-sm text-on-surface hover:bg-surface-container transition-colors cursor-pointer shrink"
+            className="flex items-center gap-1 rounded-lg border border-outline-variant px-2 h-9 text-xs sm:text-body-sm text-on-surface hover:bg-surface-container transition-colors cursor-pointer shrink"
           >
             <Zap size={14} className="text-primary shrink-0" />
             <span className="font-mono font-bold text-primary text-xs shrink-0">{selectedDevice.id}</span>
-            <span className="text-on-surface font-medium hidden sm:inline truncate max-w-[110px]">{selectedDevice.name}</span>
+            <span className="text-on-surface font-medium hidden sm:inline truncate max-w-[120px]">{selectedDevice.name}</span>
             <ChevronDown
               size={13}
               className={`text-on-surface-variant transition-transform duration-200 shrink-0 ${
@@ -180,8 +180,8 @@ export function Topbar({ onOpenMobileDrawer }: { onOpenMobileDrawer?: () => void
         </div>
       </div>
 
-      {/* Right Side Control Bar (Compact on Mobile so Profile Never Overflows) */}
-      <div className="flex items-center gap-1 sm:gap-1.5 shrink-0 ml-auto">
+      {/* Right Side Control Bar (Streamlined on Mobile for maximum space) */}
+      <div className="flex items-center gap-1.5 sm:gap-2 shrink-0 ml-auto">
         
         {/* Test Alert Button (Desktop/Tablet Only) */}
         <button
@@ -193,11 +193,11 @@ export function Topbar({ onOpenMobileDrawer }: { onOpenMobileDrawer?: () => void
           <span>Test Emergency Pop-Up</span>
         </button>
 
-        {/* Theme Switcher */}
+        {/* Theme Switcher (Desktop Only - Moved to Mobile Drawer on Mobile) */}
         <button
           onClick={toggleTheme}
           aria-label="Toggle dark mode"
-          className="h-8 w-8 flex items-center justify-center rounded-lg hover:bg-surface-container text-on-surface-variant transition-colors cursor-pointer shrink-0"
+          className="hidden md:flex h-8 w-8 items-center justify-center rounded-lg hover:bg-surface-container text-on-surface-variant transition-colors cursor-pointer shrink-0"
         >
           {theme === "dark" ? <Sun size={15} /> : <Moon size={15} />}
         </button>
@@ -283,17 +283,17 @@ export function Topbar({ onOpenMobileDrawer }: { onOpenMobileDrawer?: () => void
           )}
         </div>
 
-        {/* Multi-Language Selector Badge */}
+        {/* Multi-Language Selector Badge (Desktop Only - Moved to Mobile Drawer on Mobile) */}
         <button
           onClick={() => setLanguage(nextLang[language])}
           title="Switch Language (English / हिंदी / मराठी)"
-          className="h-8 px-1.5 rounded-full bg-primary-container text-on-primary-container flex items-center justify-center text-label-md font-bold hover:opacity-80 transition-opacity gap-1 cursor-pointer shrink-0"
+          className="hidden md:flex h-8 px-2 rounded-full bg-primary-container text-on-primary-container items-center justify-center text-label-md font-bold hover:opacity-80 transition-opacity gap-1 cursor-pointer shrink-0"
         >
           <Globe size={13} className="shrink-0" />
           <span className="text-xs">{langLabels[language]}</span>
         </button>
 
-        {/* User Profile & Logout Dropdown (100% Fixed Screen Boundary) */}
+        {/* User Profile Avatar Button */}
         <div className="relative shrink-0" ref={userDropdownRef}>
           <button
             onClick={() => {
