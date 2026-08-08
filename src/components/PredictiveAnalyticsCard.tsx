@@ -1,8 +1,9 @@
 import { useEffect, useState, useRef } from "react";
-import { Brain, ShieldAlert, Mail, CheckCircle2, Zap, Send, ExternalLink } from "lucide-react";
+import { Brain, ShieldAlert, Mail, CheckCircle2, Zap, Send } from "lucide-react";
 import { apiRequest, subscribeWebSocket } from "@/lib/api";
 import { useLiveReading } from "@/hooks/useSensorData";
 import { useAuth } from "@/context/AuthContext";
+import { sendFirebaseMaintenanceEmail } from "@/lib/firebase";
 
 export interface MlAnalysisData {
   healthScore: number;
@@ -28,6 +29,7 @@ export function PredictiveAnalyticsCard() {
   const [autoDispatched, setAutoDispatched] = useState(false);
   const [lastDispatchedTime, setLastDispatchedTime] = useState<string | null>(null);
   const [emailSentStatus, setEmailSentStatus] = useState<string | null>(null);
+  const [sendingEmail, setSendingEmail] = useState(false);
   const lastDispatchedRiskRef = useRef<string>("");
 
   const [mlData, setMlData] = useState<MlAnalysisData>({
@@ -111,30 +113,34 @@ export function PredictiveAnalyticsCard() {
     return unsubscribe;
   }, [liveReading.current, liveReading.voltage, liveReading.temperature, liveReading.health]);
 
-  // Helper to open mailto client directly with pre-formatted maintenance report
-  const triggerDirectMailDispatch = (isAuto = false) => {
-    const subject = encodeURIComponent(`🚨 URGENT MAINTENANCE DIRECTIVE: Substation TR-0042 (${mlData.riskLevel} RISK)`);
-    const body = encodeURIComponent(
-      `ATTENTION REGISTERED FIELD TECHNICIAN (${technicianName} - ${technicianRole}):\n\n` +
-      `URGENT REPAIR DIRECTIVE REQUIRED AS SOON AS POSSIBLE:\n` +
-      `--------------------------------------------------\n` +
-      `Directive: ${mlData.recommendedAction}\n` +
-      `Condition Status: ${mlData.failureMode}\n` +
-      `Risk Severity: ${mlData.riskLevel} RISK\n\n` +
-      `LIVE TELEMETRY SNAPSHOT:\n` +
-      `- Voltage: ${liveReading.voltage.toFixed(1)} V\n` +
-      `- Load Current: ${liveReading.current.toFixed(1)} A (Safety Limit: 2.0A)\n` +
-      `- Temperature: ${liveReading.temperature.toFixed(1)} °C\n` +
-      `- Humidity: ${liveReading.humidity.toFixed(1)} %\n` +
-      `- Relay Circuit Interlock: ${liveReading.relayState?.toUpperCase() || "CLOSED"}\n` +
-      `- Location: Pimpri Substation Grid (${liveReading.lat || 18.6499}, ${liveReading.lng || 73.7452})\n` +
-      `- Google Maps: ${liveReading.googleMapUrl || "https://www.google.com/maps?q=18.649916,73.745276"}\n\n` +
-      `Please perform immediate field inspection and repair as instructed.`
+  // Direct Background Firebase Email Dispatch Engine (No browser prompts / Mail app redirects)
+  const triggerFirebaseEmailDispatch = async () => {
+    setSendingEmail(true);
+    setEmailSentStatus(null);
+
+    // 1. Dispatch directly via Firebase Email Infrastructure
+    await sendFirebaseMaintenanceEmail(
+      technicianEmail,
+      mlData.riskLevel,
+      mlData.recommendedAction,
+      liveReading
     );
 
-    const mailtoUrl = `mailto:${technicianEmail}?subject=${subject}&body=${body}`;
-    window.open(mailtoUrl, "_blank");
-    setEmailSentStatus(`Report dispatched to ${technicianEmail}`);
+    // 2. Also notify backend server silently
+    apiRequest("/notifications/dispatch-email", {
+      method: "POST",
+      body: JSON.stringify({
+        email: technicianEmail,
+        technicianName,
+        role: technicianRole,
+        riskLevel: mlData.riskLevel,
+        recommendedAction: mlData.recommendedAction,
+        liveReading,
+      }),
+    }).catch(() => {});
+
+    setSendingEmail(false);
+    setEmailSentStatus(`Firebase maintenance alert dispatched directly to ${technicianEmail}`);
   };
 
   // AUTOMATED EMAIL DISPATCH ENGINE: Triggers automatically on HIGH or CRITICAL risk state
@@ -148,7 +154,14 @@ export function PredictiveAnalyticsCard() {
       setAutoDispatched(true);
       setLastDispatchedTime(nowStr);
 
-      // Trigger automated background email dispatch endpoint
+      // Trigger direct background Firebase email dispatch
+      sendFirebaseMaintenanceEmail(
+        technicianEmail,
+        mlData.riskLevel,
+        mlData.recommendedAction,
+        liveReading
+      );
+
       apiRequest("/notifications/dispatch-email", {
         method: "POST",
         body: JSON.stringify({
@@ -159,7 +172,7 @@ export function PredictiveAnalyticsCard() {
           recommendedAction: mlData.recommendedAction,
           liveReading,
         }),
-      }).catch(() => { });
+      }).catch(() => {});
     } else if (!isWarningOrCritical) {
       lastDispatchedRiskRef.current = "";
       setAutoDispatched(false);
@@ -177,14 +190,14 @@ export function PredictiveAnalyticsCard() {
     mlData.healthScore > 85
       ? "text-success bg-success"
       : mlData.healthScore > 60
-        ? "text-warning bg-warning"
-        : mlData.healthScore > 35
-          ? "text-orange-400 bg-orange-500"
-          : "text-error bg-error";
+      ? "text-warning bg-warning"
+      : mlData.healthScore > 35
+      ? "text-orange-400 bg-orange-500"
+      : "text-error bg-error";
 
   return (
     <div className="rounded-xl border border-outline-variant bg-surface-container-lowest p-md flex flex-col gap-md shadow-sm">
-
+      
       {/* Header */}
       <div className="flex items-center justify-between pb-sm border-b border-outline-variant/60">
         <div className="flex items-center gap-2">
@@ -201,8 +214,9 @@ export function PredictiveAnalyticsCard() {
           </div>
         </div>
         <span
-          className={`px-3 py-1 rounded-full text-xs font-bold border uppercase tracking-wider ${riskColors[mlData.riskLevel]
-            }`}
+          className={`px-3 py-1 rounded-full text-xs font-bold border uppercase tracking-wider ${
+            riskColors[mlData.riskLevel]
+          }`}
         >
           {mlData.riskLevel} RISK
         </span>
@@ -236,7 +250,7 @@ export function PredictiveAnalyticsCard() {
         </div>
       </div>
 
-      {/* Action Recommendation Card with DIRECT Email Dispatch Button */}
+      {/* Action Recommendation Card with AUTOMATED FIREBASE BACKGROUND EMAIL DISPATCH */}
       <div className="rounded-xl border border-outline-variant/60 bg-surface-container-lowest p-md flex flex-col gap-3">
         <div className="flex items-start gap-3">
           <div className="p-2 rounded-lg bg-warning/15 text-warning mt-0.5 shrink-0">
@@ -252,7 +266,7 @@ export function PredictiveAnalyticsCard() {
           </div>
         </div>
 
-        {/* AUTOMATED & DIRECT TECHNICIAN EMAIL DISPATCH TOOLBAR */}
+        {/* AUTOMATED FIREBASE TECHNICIAN EMAIL DISPATCH TOOLBAR */}
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 pt-3 border-t border-outline-variant/40 bg-surface-container/30 p-3 rounded-lg">
           <div className="flex items-center gap-2 text-xs min-w-0">
             <Mail size={16} className="text-primary shrink-0" />
@@ -266,21 +280,28 @@ export function PredictiveAnalyticsCard() {
           </div>
 
           <div className="flex items-center gap-2 w-full sm:w-auto shrink-0">
-            {/* 1-Click Send Email Button */}
+            {/* Direct Background Firebase Email Dispatch Button (No Outlook/Mail App Popups!) */}
             <button
-              onClick={() => triggerDirectMailDispatch(false)}
-              className="flex-1 sm:flex-none px-3 py-2 rounded-lg bg-primary text-on-primary font-bold text-xs flex items-center justify-center gap-1.5 hover:opacity-90 transition-all shadow-md cursor-pointer active:scale-95"
+              disabled={sendingEmail}
+              onClick={triggerFirebaseEmailDispatch}
+              className="flex-1 sm:flex-none px-3.5 py-2 rounded-lg bg-primary text-on-primary font-bold text-xs flex items-center justify-center gap-1.5 hover:opacity-90 disabled:opacity-50 transition-all shadow-md cursor-pointer active:scale-95"
             >
-              <Send size={14} />
-              <span>Send Maintenance Email to Technician</span>
+              {sendingEmail ? (
+                <span>Dispatching via Firebase...</span>
+              ) : (
+                <>
+                  <Send size={14} />
+                  <span>Dispatch Maintenance Email (Firebase)</span>
+                </>
+              )}
             </button>
           </div>
         </div>
 
         {emailSentStatus && (
-          <div className="p-2 rounded-lg bg-success/15 border border-success/30 text-success text-xs flex items-center gap-2 animate-in fade-in">
-            <CheckCircle2 size={15} className="shrink-0" />
-            <span>{emailSentStatus}</span>
+          <div className="p-2.5 rounded-lg bg-success/15 border border-success/30 text-success text-xs flex items-center gap-2 animate-in fade-in">
+            <CheckCircle2 size={16} className="shrink-0 text-success" />
+            <span className="font-medium">{emailSentStatus}</span>
           </div>
         )}
       </div>
