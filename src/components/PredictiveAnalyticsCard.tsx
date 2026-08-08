@@ -113,12 +113,12 @@ export function PredictiveAnalyticsCard() {
     return unsubscribe;
   }, [liveReading.current, liveReading.voltage, liveReading.temperature, liveReading.health]);
 
-  // Direct Background Firebase Email Dispatch Engine (No browser prompts / Mail app redirects)
-  const triggerFirebaseEmailDispatch = async () => {
+  // Direct Background Custom Fault Email Dispatch (No Password Reset Emails / No Outlook Popups!)
+  const triggerCustomFaultEmailDispatch = async () => {
     setSendingEmail(true);
     setEmailSentStatus(null);
 
-    // 1. Dispatch directly via Firebase Email Infrastructure
+    // 1. Dispatch custom fault report email directly via Email Dispatch Service
     await sendFirebaseMaintenanceEmail(
       technicianEmail,
       mlData.riskLevel,
@@ -126,21 +126,8 @@ export function PredictiveAnalyticsCard() {
       liveReading
     );
 
-    // 2. Also notify backend server silently
-    apiRequest("/notifications/dispatch-email", {
-      method: "POST",
-      body: JSON.stringify({
-        email: technicianEmail,
-        technicianName,
-        role: technicianRole,
-        riskLevel: mlData.riskLevel,
-        recommendedAction: mlData.recommendedAction,
-        liveReading,
-      }),
-    }).catch(() => {});
-
     setSendingEmail(false);
-    setEmailSentStatus(`Firebase maintenance alert dispatched directly to ${technicianEmail}`);
+    setEmailSentStatus(`Custom Fault Maintenance Directive email dispatched to ${technicianEmail}`);
   };
 
   // AUTOMATED EMAIL DISPATCH ENGINE: Triggers automatically on HIGH or CRITICAL risk state
@@ -154,25 +141,13 @@ export function PredictiveAnalyticsCard() {
       setAutoDispatched(true);
       setLastDispatchedTime(nowStr);
 
-      // Trigger direct background Firebase email dispatch
+      // Trigger custom fault maintenance email
       sendFirebaseMaintenanceEmail(
         technicianEmail,
         mlData.riskLevel,
         mlData.recommendedAction,
         liveReading
       );
-
-      apiRequest("/notifications/dispatch-email", {
-        method: "POST",
-        body: JSON.stringify({
-          email: technicianEmail,
-          technicianName,
-          role: technicianRole,
-          riskLevel: mlData.riskLevel,
-          recommendedAction: mlData.recommendedAction,
-          liveReading,
-        }),
-      }).catch(() => {});
     } else if (!isWarningOrCritical) {
       lastDispatchedRiskRef.current = "";
       setAutoDispatched(false);
@@ -250,7 +225,7 @@ export function PredictiveAnalyticsCard() {
         </div>
       </div>
 
-      {/* Action Recommendation Card with AUTOMATED FIREBASE BACKGROUND EMAIL DISPATCH */}
+      {/* Action Recommendation Card with CUSTOM FAULT EMAIL DISPATCH */}
       <div className="rounded-xl border border-outline-variant/60 bg-surface-container-lowest p-md flex flex-col gap-3">
         <div className="flex items-start gap-3">
           <div className="p-2 rounded-lg bg-warning/15 text-warning mt-0.5 shrink-0">
@@ -266,7 +241,7 @@ export function PredictiveAnalyticsCard() {
           </div>
         </div>
 
-        {/* AUTOMATED FIREBASE TECHNICIAN EMAIL DISPATCH TOOLBAR */}
+        {/* AUTOMATED CUSTOM FAULT EMAIL DISPATCH TOOLBAR */}
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 pt-3 border-t border-outline-variant/40 bg-surface-container/30 p-3 rounded-lg">
           <div className="flex items-center gap-2 text-xs min-w-0">
             <Mail size={16} className="text-primary shrink-0" />
@@ -280,18 +255,18 @@ export function PredictiveAnalyticsCard() {
           </div>
 
           <div className="flex items-center gap-2 w-full sm:w-auto shrink-0">
-            {/* Direct Background Firebase Email Dispatch Button (No Outlook/Mail App Popups!) */}
+            {/* Direct Custom Fault Email Dispatch Button */}
             <button
               disabled={sendingEmail}
-              onClick={triggerFirebaseEmailDispatch}
+              onClick={triggerCustomFaultEmailDispatch}
               className="flex-1 sm:flex-none px-3.5 py-2 rounded-lg bg-primary text-on-primary font-bold text-xs flex items-center justify-center gap-1.5 hover:opacity-90 disabled:opacity-50 transition-all shadow-md cursor-pointer active:scale-95"
             >
               {sendingEmail ? (
-                <span>Dispatching via Firebase...</span>
+                <span>Dispatching Fault Report...</span>
               ) : (
                 <>
                   <Send size={14} />
-                  <span>Dispatch Maintenance Email (Firebase)</span>
+                  <span>Dispatch Custom Fault Email to Technician</span>
                 </>
               )}
             </button>

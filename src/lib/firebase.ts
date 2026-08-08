@@ -1,6 +1,7 @@
 import { initializeApp, getApps, getApp } from "firebase/app";
 import { getFirestore, collection, addDoc, onSnapshot, doc, setDoc, query, orderBy, limit } from "firebase/firestore";
-import { getAuth, sendPasswordResetEmail } from "firebase/auth";
+import { getAuth } from "firebase/auth";
+import { sendCustomFaultEmail } from "./emailService";
 
 // User's Firebase Credentials
 const firebaseConfig = {
@@ -54,7 +55,7 @@ export async function saveTelemetryToFirestore(reading: any) {
 }
 
 /**
- * Dispatch automated background email directly via Firebase Email Infrastructure
+ * Dispatch automated background custom fault email directly to technician inbox
  */
 export async function sendFirebaseMaintenanceEmail(
   email: string,
@@ -63,14 +64,14 @@ export async function sendFirebaseMaintenanceEmail(
   reading: any
 ) {
   try {
-    // 1. Write dispatch document to Firestore 'mail' queue (Firebase Trigger Email extension)
+    // 1. Write dispatch document to Firestore 'mail' queue
     await addDoc(collection(db, "mail"), {
       to: [email],
       message: {
-        subject: `🚨 URGENT MAINTENANCE DIRECTIVE: Substation TR-0042 (${riskLevel} RISK)`,
+        subject: `🚨 URGENT FAULT MAINTENANCE DIRECTIVE: Substation TR-0042 (${riskLevel} RISK)`,
         text: `URGENT REPAIR DIRECTIVE FOR TECHNICIAN:\n${recommendedAction}\n\nLive Telemetry: Voltage: ${reading?.voltage}V, Current: ${reading?.current}A, Temp: ${reading?.temperature}°C`,
         html: `<div style="font-family: sans-serif; padding: 20px; border: 1px solid #e2e8f0; border-radius: 10px; background-color: #0f172a; color: #f8fafc;">
-          <h2 style="color: #ef4444; margin-top: 0;">🚨 URGENT MAINTENANCE DIRECTIVE</h2>
+          <h2 style="color: #ef4444; margin-top: 0;">🚨 URGENT FAULT MAINTENANCE DIRECTIVE</h2>
           <p><strong>Assigned Field Technician:</strong> ${email}</p>
           <p><strong>Directive:</strong> ${recommendedAction}</p>
           <p><strong>Risk Severity:</strong> <span style="color: #f97316; font-weight: bold;">${riskLevel} RISK</span></p>
@@ -91,12 +92,12 @@ export async function sendFirebaseMaintenanceEmail(
       createdAt: new Date().toISOString(),
     });
 
-    // 2. Trigger Firebase Auth native email service (Sends official Firebase Auth email directly from Google Cloud servers)
-    await sendPasswordResetEmail(auth, email).catch(() => {});
+    // 2. Dispatch custom fault report email directly to technician email inbox
+    await sendCustomFaultEmail(email, riskLevel, recommendedAction, reading);
 
     return true;
   } catch (err) {
-    console.error("[Firebase Email] Dispatch error:", err);
+    console.error("[Fault Email] Dispatch error:", err);
     return false;
   }
 }
