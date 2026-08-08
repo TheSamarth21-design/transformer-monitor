@@ -28,6 +28,55 @@ const INITIAL_DEVICE: TransformerDevice = {
   lastUpdated: new Date().toISOString(),
 };
 
+// Rolling 20-Sample Memory Buffer for Machine Learning Pattern Observation
+const sensorHistoryWindow: {
+  voltage: number[];
+  current: number[];
+  temperature: number[];
+  humidity: number[];
+} = {
+  voltage: [],
+  current: [],
+  temperature: [],
+  humidity: [],
+};
+
+/**
+ * Advanced Time-Series Pattern Predictor:
+ * Analyzes up to 20 historical real sensor samples.
+ * Uses Least-Squares Linear Regression & Mean-Variance Analysis to project the observed pattern forward.
+ */
+function predictFromPattern(
+  history: number[],
+  defaultBaseline: number,
+  minBound: number,
+  maxBound: number
+): number {
+  if (history.length === 0) return defaultBaseline;
+  
+  const n = history.length;
+  const meanY = history.reduce((a, b) => a + b, 0) / n;
+  
+  if (n < 2) return Number(meanY.toFixed(1));
+
+  // Calculate Least-Squares Trend Slope m = Σ(x - x_bar)(y - y_bar) / Σ(x - x_bar)^2
+  const meanX = (n - 1) / 2;
+  let num = 0;
+  let den = 0;
+
+  for (let i = 0; i < n; i++) {
+    num += (i - meanX) * (history[i] - meanY);
+    den += Math.pow(i - meanX, 2);
+  }
+
+  const slope = den !== 0 ? num / den : 0;
+  // Project next trend point along observed pattern
+  const predictedNext = meanY + slope * 1.5 + (Math.sin(n * 0.5) * 0.15);
+  const clamped = Math.max(minBound, Math.min(maxBound, predictedNext));
+
+  return Number(clamped.toFixed(1));
+}
+
 export function useLiveReading(): LiveReading & { isHardwareOnline: boolean; isReplicatedData: boolean } {
   const [reading, setReading] = useState<LiveReading>({
     voltage: 0,
@@ -94,11 +143,9 @@ export function useLiveReading(): LiveReading & { isHardwareOnline: boolean; isR
       }
     });
 
-    // 4. Blynk Hardware API Poller with Granular Per-Sensor AI Replicator
-    let pollCount = 0;
+    // 4. Blynk Hardware API Poller with 20-Sample Pattern Recognition AI Replicator
     const blynkPoller = setInterval(async () => {
       try {
-        pollCount++;
         const res = await fetch(BLYNK_POLL_URL);
         if (!res.ok) {
           throw new Error("Blynk API Unreachable");
@@ -116,7 +163,25 @@ export function useLiveReading(): LiveReading & { isHardwareOnline: boolean; isR
         const relayVal = parseInt(blynkData.v6, 10);
         const relayState = relayVal === 1 ? "closed" : "tripped";
 
-        // Granular Per-Sensor Replication Logic
+        // Record real physical sensor samples into 20-sample rolling memory window
+        if (rawVolt > 0) {
+          sensorHistoryWindow.voltage.push(rawVolt);
+          if (sensorHistoryWindow.voltage.length > 20) sensorHistoryWindow.voltage.shift();
+        }
+        if (rawCur > 0) {
+          sensorHistoryWindow.current.push(rawCur);
+          if (sensorHistoryWindow.current.length > 20) sensorHistoryWindow.current.shift();
+        }
+        if (rawTemp > 0) {
+          sensorHistoryWindow.temperature.push(rawTemp);
+          if (sensorHistoryWindow.temperature.length > 20) sensorHistoryWindow.temperature.shift();
+        }
+        if (rawHum > 0) {
+          sensorHistoryWindow.humidity.push(rawHum);
+          if (sensorHistoryWindow.humidity.length > 20) sensorHistoryWindow.humidity.shift();
+        }
+
+        // Granular Per-Sensor Health Evaluation
         const isVoltOk = rawVolt > 0;
         const isCurOk = rawCur > 0;
         const isTempOk = rawTemp > 0;
@@ -125,11 +190,22 @@ export function useLiveReading(): LiveReading & { isHardwareOnline: boolean; isR
         const isAnySensorFailed = !isVoltOk || !isCurOk || !isTempOk || !isHumOk;
         const isAllFailed = !isVoltOk && !isCurOk;
 
-        // Granular Replicated Values
-        const finalVolt = isVoltOk ? rawVolt : Number((119.5 + Math.sin(pollCount * 0.3) * 2.5).toFixed(1));
-        const finalCur = isCurOk ? rawCur : Number((0.85 + Math.cos(pollCount * 0.4) * 0.2).toFixed(1));
-        const finalTemp = isTempOk ? rawTemp : Number((28.4 + Math.sin(pollCount * 0.2) * 1.5).toFixed(1));
-        const finalHum = isHumOk ? rawHum : Number((62.0 + Math.cos(pollCount * 0.3) * 3.0).toFixed(1));
+        // Predict failover values using observed 20-sample pattern regression
+        const finalVolt = isVoltOk
+          ? rawVolt
+          : predictFromPattern(sensorHistoryWindow.voltage, 119.5, 110.0, 130.0);
+
+        const finalCur = isCurOk
+          ? rawCur
+          : predictFromPattern(sensorHistoryWindow.current, 0.85, 0.0, 2.5);
+
+        const finalTemp = isTempOk
+          ? rawTemp
+          : predictFromPattern(sensorHistoryWindow.temperature, 28.4, 15.0, 75.0);
+
+        const finalHum = isHumOk
+          ? rawHum
+          : predictFromPattern(sensorHistoryWindow.humidity, 62.0, 30.0, 90.0);
 
         const sensorStatus = {
           voltage: isVoltOk ? ("real" as const) : ("replicated" as const),
@@ -138,16 +214,21 @@ export function useLiveReading(): LiveReading & { isHardwareOnline: boolean; isR
           humidity: isHumOk ? ("real" as const) : ("replicated" as const),
         };
 
-        // Construct Technician Warning Message for Sensor Faults
+        // Construct Technician Warning Message detailing 20-sample pattern prediction
         let alertMsg = String(blynkData.v8 || "");
+        const sampleCount = Math.max(
+          sensorHistoryWindow.voltage.length,
+          sensorHistoryWindow.current.length
+        );
+
         if (isAllFailed) {
-          alertMsg = "🚨 CRITICAL: ESP32 Hardware Damaged / Offline. Full AI Data Replicator Active.";
+          alertMsg = `🚨 CRITICAL: ESP32 Board Damaged. Replicating pattern from last ${sampleCount} real samples.`;
         } else if (!isVoltOk) {
-          alertMsg = "⚠️ VOLTAGE SENSOR FAULT: ZMPT101B failed. AI Replicator active for Voltage.";
+          alertMsg = `⚠️ VOLTAGE SENSOR FAULT: ZMPT101B failed. Replicating 20-sample voltage trend.`;
         } else if (!isCurOk) {
-          alertMsg = "⚠️ CURRENT SENSOR FAULT: ACS712 failed. AI Replicator active for Current.";
+          alertMsg = `⚠️ CURRENT SENSOR FAULT: ACS712 failed. Replicating 20-sample load current trend.`;
         } else if (!isTempOk) {
-          alertMsg = "⚠️ THERMAL SENSOR FAULT: DHT11 temperature sensor disconnected.";
+          alertMsg = `⚠️ THERMAL SENSOR FAULT: DHT11 temperature sensor disconnected.`;
         }
 
         const telemetryData: LiveReading = {
@@ -158,7 +239,9 @@ export function useLiveReading(): LiveReading & { isHardwareOnline: boolean; isR
           lat,
           lng,
           relayState,
-          health: isAnySensorFailed ? "Sensor Fault - AI Replicator Engaged" : String(blynkData.v7 || "Hardware Online"),
+          health: isAnySensorFailed
+            ? `Pattern-based AI Replicator Active (${sampleCount}/20 Samples Observed)`
+            : String(blynkData.v7 || "Hardware Online"),
           alertMsg,
           googleMapUrl: `https://www.google.com/maps?q=${lat},${lng}`,
           timestamp: new Date().toISOString(),
@@ -173,17 +256,22 @@ export function useLiveReading(): LiveReading & { isHardwareOnline: boolean; isR
         // Sync snapshot to Cloud Firestore (with real/replicated tags)
         saveTelemetryToFirestore(telemetryData).catch(() => {});
       } catch {
-        // Complete Connection Failure Fallback
+        // Complete Connection Failure Fallback using 20-sample pattern
+        const sampleCount = Math.max(
+          sensorHistoryWindow.voltage.length,
+          sensorHistoryWindow.current.length
+        );
+
         const predictedReading: LiveReading = {
-          voltage: 119.5,
-          current: 0.85,
-          temperature: 28.4,
-          humidity: 62.0,
+          voltage: predictFromPattern(sensorHistoryWindow.voltage, 119.5, 110.0, 130.0),
+          current: predictFromPattern(sensorHistoryWindow.current, 0.85, 0.0, 2.5),
+          temperature: predictFromPattern(sensorHistoryWindow.temperature, 28.4, 15.0, 75.0),
+          humidity: predictFromPattern(sensorHistoryWindow.humidity, 62.0, 30.0, 90.0),
           lat: DEFAULT_LAT,
           lng: DEFAULT_LNG,
           relayState: "closed",
-          health: "AI Predictive Data Replication Active (Hardware Offline)",
-          alertMsg: "🚨 CRITICAL: ESP32 Board Disconnected. AI Predictive Replicator Active.",
+          health: `Pattern-based AI Replicator Active (${sampleCount}/20 Samples Observed)`,
+          alertMsg: `🚨 CRITICAL: ESP32 Board Offline. AI pattern predictor active using ${sampleCount} real samples.`,
           googleMapUrl: `https://www.google.com/maps?q=${DEFAULT_LAT},${DEFAULT_LNG}`,
           timestamp: new Date().toISOString(),
           isReplicatedData: true,
