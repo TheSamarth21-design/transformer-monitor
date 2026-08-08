@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
-import { Brain, ShieldAlert } from "lucide-react";
+import { Brain, ShieldAlert, Mail, Send, CheckCircle2 } from "lucide-react";
 import { apiRequest, subscribeWebSocket } from "@/lib/api";
 import { useLiveReading } from "@/hooks/useSensorData";
+import { useAuth } from "@/context/AuthContext";
 
 export interface MlAnalysisData {
   healthScore: number;
@@ -18,6 +19,13 @@ export interface MlAnalysisData {
 
 export function PredictiveAnalyticsCard() {
   const liveReading = useLiveReading();
+  const { user } = useAuth();
+
+  const technicianEmail = user?.email || "technician@substation-grid.com";
+  const technicianName = user?.name || "Registered Field Technician";
+  const technicianRole = user?.role || "Substation Engineer";
+
+  const [emailSentState, setEmailSentState] = useState(false);
 
   const [mlData, setMlData] = useState<MlAnalysisData>({
     healthScore: 95,
@@ -49,22 +57,22 @@ export function PredictiveAnalyticsCard() {
       healthScore = 25;
       riskLevel = "CRITICAL";
       failureMode = "Critical Over-current Overload";
-      recommendedAction = "CRITICAL: Current exceeds 2.0A limit! Automatic interlock relay tripped.";
+      recommendedAction = "CRITICAL OVERLOAD: Current exceeds 2.0A safety limit! Perform urgent field inspection & repair as soon as possible.";
     } else if (cur > 1.0) {
       healthScore = 65;
       riskLevel = "HIGH";
       failureMode = "Elevated Load Warning";
-      recommendedAction = "WARNING: Load elevated between 1.0A and 2.0A threshold. Technician notified.";
+      recommendedAction = "WARNING: Load elevated between 1.0A and 2.0A threshold. Urgent field inspection & repair required as soon as possible.";
     } else if (temp > 70) {
       healthScore = 55;
       riskLevel = "HIGH";
       failureMode = "Core Overheating Stress";
-      recommendedAction = "WARNING: Transformer thermal baseline high. Inspect cooling oil.";
+      recommendedAction = "WARNING: Transformer thermal baseline high. Perform urgent cooling oil inspection & repair as soon as possible.";
     } else if (volt > 0 && volt < 100) {
       healthScore = 75;
       riskLevel = "MODERATE";
       failureMode = "Low Voltage Sag";
-      recommendedAction = "Grid input voltage is below nominal range.";
+      recommendedAction = "Grid input voltage below nominal range. Field inspection advised.";
     }
 
     // Override with server ML calculations if backend server active
@@ -115,6 +123,33 @@ export function PredictiveAnalyticsCard() {
       : mlData.healthScore > 35
       ? "text-orange-400 bg-orange-500"
       : "text-error bg-error";
+
+  const handleDispatchEmail = () => {
+    setEmailSentState(true);
+    const subject = encodeURIComponent(`URGENT: Substation Repair Required for TR-0042 [${mlData.riskLevel} RISK]`);
+    const body = encodeURIComponent(
+      `SMART SUBSTATION TRANSFORMER DISPATCH REPORT\n` +
+      `---------------------------------------------\n` +
+      `Target Technician: ${technicianName} (${technicianRole})\n` +
+      `Technician Email: ${technicianEmail}\n\n` +
+      `Transformer ID: TR-0042\n` +
+      `Location: Pimpri Substation Grid (18.6499, 73.7452)\n` +
+      `Current Health Index: ${mlData.healthScore}%\n` +
+      `Condition Status: ${mlData.failureMode}\n` +
+      `Risk Level: ${mlData.riskLevel}\n\n` +
+      `LIVE SENSOR TELEMETRY:\n` +
+      `- Voltage: ${liveReading.voltage || 119.3} V\n` +
+      `- Current: ${liveReading.current || 1.5} A\n` +
+      `- Temperature: ${liveReading.temperature || 25.2} °C\n` +
+      `- Humidity: ${liveReading.humidity || 79.9} %\n\n` +
+      `REQUIRED REPAIR ACTION:\n` +
+      `${mlData.recommendedAction}\n\n` +
+      `Please perform urgent field inspection and repair as soon as possible.\n` +
+      `Timestamp: ${new Date().toLocaleString()}`
+    );
+
+    window.open(`mailto:${technicianEmail}?subject=${subject}&body=${body}`, "_blank");
+  };
 
   return (
     <div className="rounded-xl border border-outline-variant bg-surface-container-lowest p-md flex flex-col gap-md shadow-sm">
@@ -171,18 +206,55 @@ export function PredictiveAnalyticsCard() {
         </div>
       </div>
 
-      {/* Action Recommendation Card */}
-      <div className="rounded-xl border border-outline-variant/60 bg-surface-container-lowest p-sm flex items-start gap-3">
-        <div className="p-2 rounded-lg bg-warning/15 text-warning mt-0.5 shrink-0">
-          <ShieldAlert size={18} />
+      {/* Action Recommendation Card with Technician Email Dispatch */}
+      <div className="rounded-xl border border-outline-variant/60 bg-surface-container-lowest p-md flex flex-col gap-3">
+        <div className="flex items-start gap-3">
+          <div className="p-2 rounded-lg bg-warning/15 text-warning mt-0.5 shrink-0">
+            <ShieldAlert size={20} />
+          </div>
+          <div className="flex-1">
+            <span className="text-label-sm uppercase text-on-surface-variant font-bold">
+              Recommended Action & Repair Directive
+            </span>
+            <p className="text-body-sm font-semibold text-on-surface mt-1 leading-relaxed">
+              {mlData.recommendedAction}
+            </p>
+          </div>
         </div>
-        <div>
-          <span className="text-label-sm uppercase text-on-surface-variant">
-            Recommended Action
-          </span>
-          <p className="text-body-sm font-medium text-on-surface mt-0.5">
-            {mlData.recommendedAction}
-          </p>
+
+        {/* Technician Registered Email Badge & Dispatch Action Button */}
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 pt-2 border-t border-outline-variant/40 bg-surface-container/30 p-2.5 rounded-lg">
+          <div className="flex items-center gap-2 text-xs">
+            <Mail size={15} className="text-primary shrink-0" />
+            <div>
+              <span className="text-on-surface-variant font-medium">Assigned Technician: </span>
+              <span className="font-bold font-mono text-primary">{technicianEmail}</span>
+              <span className="text-on-surface-variant text-[11px] block sm:inline sm:ml-1">
+                ({technicianName} &middot; {technicianRole})
+              </span>
+            </div>
+          </div>
+
+          <button
+            onClick={handleDispatchEmail}
+            className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer shadow-sm ${
+              emailSentState
+                ? "bg-success text-on-success"
+                : "bg-primary text-on-primary hover:opacity-90"
+            }`}
+          >
+            {emailSentState ? (
+              <>
+                <CheckCircle2 size={14} />
+                <span>Email Alert Dispatched</span>
+              </>
+            ) : (
+              <>
+                <Send size={14} />
+                <span>Send Email Alert to Technician</span>
+              </>
+            )}
+          </button>
         </div>
       </div>
 
