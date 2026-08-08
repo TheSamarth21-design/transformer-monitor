@@ -214,7 +214,7 @@ export function useLiveReading(): LiveReading & { isHardwareOnline: boolean; isR
           humidity: isHumOk ? ("real" as const) : ("replicated" as const),
         };
 
-        // Construct Technician Warning Message detailing 20-sample pattern prediction
+        // Construct Technician Message detailing 20-sample pattern prediction
         let alertMsg = String(blynkData.v8 || "");
         const sampleCount = Math.max(
           sensorHistoryWindow.voltage.length,
@@ -222,11 +222,11 @@ export function useLiveReading(): LiveReading & { isHardwareOnline: boolean; isR
         );
 
         if (isAllFailed) {
-          alertMsg = `🚨 CRITICAL: ESP32 Board Damaged. Replicating pattern from last ${sampleCount} real samples.`;
+          alertMsg = `⚠️ ESP32 Hardware Offline / Standby. AI Replicator active using 20-sample pattern.`;
         } else if (!isVoltOk) {
-          alertMsg = `⚠️ VOLTAGE SENSOR FAULT: ZMPT101B failed. Replicating 20-sample voltage trend.`;
+          alertMsg = `⚠️ VOLTAGE SENSOR FAULT: ZMPT101B disconnected. Replicating 20-sample voltage trend.`;
         } else if (!isCurOk) {
-          alertMsg = `⚠️ CURRENT SENSOR FAULT: ACS712 failed. Replicating 20-sample load current trend.`;
+          alertMsg = `⚠️ CURRENT SENSOR FAULT: ACS712 disconnected. Replicating 20-sample load current trend.`;
         } else if (!isTempOk) {
           alertMsg = `⚠️ THERMAL SENSOR FAULT: DHT11 temperature sensor disconnected.`;
         }
@@ -271,7 +271,7 @@ export function useLiveReading(): LiveReading & { isHardwareOnline: boolean; isR
           lng: DEFAULT_LNG,
           relayState: "closed",
           health: `Pattern-based AI Replicator Active (${sampleCount}/20 Samples Observed)`,
-          alertMsg: `🚨 CRITICAL: ESP32 Board Offline. AI pattern predictor active using ${sampleCount} real samples.`,
+          alertMsg: `⚠️ ESP32 Hardware Offline / Standby. AI pattern predictor active.`,
           googleMapUrl: `https://www.google.com/maps?q=${DEFAULT_LAT},${DEFAULT_LNG}`,
           timestamp: new Date().toISOString(),
           isReplicatedData: true,
