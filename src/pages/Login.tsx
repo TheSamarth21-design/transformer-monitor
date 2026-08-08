@@ -14,7 +14,7 @@ export default function Login() {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [role, setRole] = useState("Substation Engineer");
+  const [role, setRole] = useState("Technician");
 
   const [loading, setLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
@@ -82,7 +82,7 @@ export default function Login() {
             </h1>
             <p className="text-xs text-white/60">
               {isRegisterMode
-                ? "Create a new engineer or operator account with email"
+                ? "Create a new technician or engineer account with email"
                 : "Enter your registered email and password to access dashboard"}
             </p>
           </div>
@@ -188,7 +188,7 @@ export default function Login() {
               </div>
             </div>
 
-            {/* Role Select (Register Mode Only) */}
+            {/* Substation Role Select (Register Mode Only) */}
             {isRegisterMode && (
               <div className="flex flex-col gap-1">
                 <label className="text-xs font-semibold text-white/80">Substation Role</label>
@@ -197,9 +197,11 @@ export default function Login() {
                   onChange={(e) => setRole(e.target.value)}
                   className="w-full h-11 px-3 rounded-xl bg-[#1e1e28] border border-white/10 text-sm font-medium text-white focus:border-primary focus:outline-none cursor-pointer"
                 >
-                  <option value="Substation Engineer">Substation Grid Engineer</option>
-                  <option value="Field Maintenance Technician">Field Maintenance Technician</option>
-                  <option value="SCADA System Operator">SCADA System Operator</option>
+                  <option value="Technician">Technician</option>
+                  <option value="Jr. Engineer">Jr. Engineer</option>
+                  <option value="Executive Engineer">Executive Engineer</option>
+                  <option value="Operator">Operator</option>
+                  <option value="Lineman">Lineman</option>
                 </select>
               </div>
             )}
