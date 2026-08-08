@@ -13,9 +13,9 @@ export function DigitalTwin3D() {
     metrics: string;
     status: "normal" | "warning" | "critical";
   }>({
-    name: "Transformer Main Core & Oil Tank",
-    description: "Primary magnetic core housing and dielectric cooling oil reservoir.",
-    metrics: `Temp: ${liveReading.temperature.toFixed(1)}°C | Health: ${liveReading.healthScore || 95}%`,
+    name: "Transformer Main Unit",
+    description: "Primary core housing and dielectric cooling assembly.",
+    metrics: `Temperature: ${liveReading.temperature.toFixed(1)}°C | Health: ${liveReading.healthScore || 95}%`,
     status: liveReading.temperature > 60 ? "warning" : "normal",
   });
 
@@ -77,8 +77,8 @@ export function DigitalTwin3D() {
     const tankMesh = new THREE.Mesh(tankGeo, tankMat);
     tankMesh.position.y = 0;
     tankMesh.userData = {
-      name: "Transformer Main Core & Oil Tank",
-      description: "Primary magnetic core housing and dielectric cooling oil reservoir.",
+      name: "Transformer Main Unit",
+      description: "Primary magnetic core housing and dielectric cooling assembly.",
       type: "tank",
     };
     transformerGroup.add(tankMesh);
@@ -180,7 +180,7 @@ export function DigitalTwin3D() {
           let statusVal: "normal" | "warning" | "critical" = "normal";
 
           if (type === "tank") {
-            metricsStr = `Core Temp: ${liveReading.temperature.toFixed(1)}°C | Health Index: ${liveReading.healthScore || 95}%`;
+            metricsStr = `Temperature: ${liveReading.temperature.toFixed(1)}°C | Health Index: ${liveReading.healthScore || 95}%`;
             statusVal = liveReading.temperature > 60 ? "warning" : "normal";
           } else if (type === "bushing") {
             metricsStr = `Line Voltage: ${liveReading.voltage.toFixed(1)}V | Load Current: ${liveReading.current.toFixed(1)}A`;
@@ -320,7 +320,7 @@ export function DigitalTwin3D() {
 
       </div>
 
-      {/* Live 3D Twin Legend Bar */}
+      {/* Live 3D Twin Legend Bar (Synced directly with Blynk Live Readings) */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-sm text-xs font-mono">
         <div className="p-2 rounded-lg bg-surface-container/30 border border-outline-variant/40 flex items-center gap-2">
           <div className="h-3 w-3 rounded-full bg-sky-500 animate-pulse" />
@@ -337,7 +337,7 @@ export function DigitalTwin3D() {
             }`}
           />
           <div>
-            <span className="text-on-surface-variant text-[11px] block">Oil Core Tank</span>
+            <span className="text-on-surface-variant text-[11px] block">Temperature</span>
             <span className="font-bold text-on-surface">{liveReading.temperature.toFixed(1)} °C</span>
           </div>
         </div>
