@@ -66,12 +66,10 @@ export function Topbar({ onOpenMobileDrawer }: { onOpenMobileDrawer?: () => void
   };
 
   const handleTestAlert = async () => {
-    // 1. Unmute presentation alert suppression
     if (typeof window !== "undefined") {
       sessionStorage.removeItem("presentation_mute_alerts");
     }
 
-    // 2. Dispatch client-side Emergency Alert Event with specs: 2.6A, 120V, 25°C, 64%
     const testAlertEvent = new CustomEvent("trigger_emergency_alert", {
       detail: {
         alertId: `al-${Date.now()}`,
@@ -95,12 +93,9 @@ export function Topbar({ onOpenMobileDrawer }: { onOpenMobileDrawer?: () => void
     triggerHapticVibration();
     playEmergencyAlarmSound(10);
 
-    // 3. Try hitting backend endpoint silently if backend is active
     try {
       await apiRequest("/test-emergency-alert", { method: "POST" });
-    } catch {
-      // Quiet fail on Vercel static hosts
-    }
+    } catch {}
   };
 
   const selectTransformer = (tr: typeof availableTransformers[0]) => {
@@ -114,32 +109,32 @@ export function Topbar({ onOpenMobileDrawer }: { onOpenMobileDrawer?: () => void
   };
 
   return (
-    <header className="h-14 shrink-0 border-b border-outline-variant bg-surface-container-lowest flex items-center justify-between px-2 sm:px-md relative z-40 max-w-full overflow-hidden">
+    <header className="h-14 shrink-0 border-b border-outline-variant bg-surface-container-lowest flex items-center justify-between px-2 sm:px-md relative z-40 w-full overflow-hidden">
       
       {/* Mobile Drawer Toggle & Transformer Selector */}
-      <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+      <div className="flex items-center gap-1 sm:gap-2 shrink min-w-0">
         {onOpenMobileDrawer && (
           <button
             onClick={onOpenMobileDrawer}
             aria-label="Open Navigation Menu"
             className="md:hidden h-9 w-9 flex items-center justify-center rounded-lg hover:bg-surface-container text-on-surface cursor-pointer shrink-0"
           >
-            <Menu size={22} />
+            <Menu size={20} />
           </button>
         )}
 
-        <div className="relative" ref={deviceDropdownRef}>
+        <div className="relative shrink min-w-0" ref={deviceDropdownRef}>
           <button
             onClick={() => {
               setDeviceDropdownOpen(!deviceDropdownOpen);
               setNotificationDropdownOpen(false);
               setUserDropdownOpen(false);
             }}
-            className="flex items-center gap-1 sm:gap-1.5 rounded-lg border border-outline-variant px-1.5 sm:px-2 h-9 text-xs sm:text-body-sm text-on-surface hover:bg-surface-container transition-colors cursor-pointer shrink-0"
+            className="flex items-center gap-1 rounded-lg border border-outline-variant px-1.5 sm:px-2 h-9 text-xs sm:text-body-sm text-on-surface hover:bg-surface-container transition-colors cursor-pointer shrink"
           >
             <Zap size={14} className="text-primary shrink-0" />
-            <span className="font-mono font-bold text-primary">{selectedDevice.id}</span>
-            <span className="text-on-surface font-medium hidden sm:inline">{selectedDevice.name}</span>
+            <span className="font-mono font-bold text-primary text-xs shrink-0">{selectedDevice.id}</span>
+            <span className="text-on-surface font-medium hidden sm:inline truncate max-w-[110px]">{selectedDevice.name}</span>
             <ChevronDown
               size={13}
               className={`text-on-surface-variant transition-transform duration-200 shrink-0 ${
@@ -185,16 +180,17 @@ export function Topbar({ onOpenMobileDrawer }: { onOpenMobileDrawer?: () => void
         </div>
       </div>
 
-      <div className="flex items-center gap-1 sm:gap-2 shrink-0">
-        {/* Test Alert Button */}
+      {/* Right Side Control Bar (Compact on Mobile so Profile Never Overflows) */}
+      <div className="flex items-center gap-1 sm:gap-1.5 shrink-0 ml-auto">
+        
+        {/* Test Alert Button (Desktop/Tablet Only) */}
         <button
           onClick={handleTestAlert}
           title="Test 2.6A Overload Emergency Pop-Up Alert"
-          className="h-8 px-2 sm:px-2.5 rounded-full bg-error/15 border border-error/30 text-error flex items-center gap-1 text-[10px] sm:text-xs font-bold hover:bg-error/25 transition-colors cursor-pointer shrink-0"
+          className="hidden sm:flex h-8 px-2 sm:px-2.5 rounded-full bg-error/15 border border-error/30 text-error items-center gap-1 text-[10px] sm:text-xs font-bold hover:bg-error/25 transition-colors cursor-pointer shrink-0"
         >
           <ShieldAlert size={13} className="shrink-0" />
-          <span className="hidden sm:inline">Test Emergency Pop-Up</span>
-          <span className="sm:hidden">Test</span>
+          <span>Test Emergency Pop-Up</span>
         </button>
 
         {/* Theme Switcher */}
@@ -206,7 +202,7 @@ export function Topbar({ onOpenMobileDrawer }: { onOpenMobileDrawer?: () => void
           {theme === "dark" ? <Sun size={15} /> : <Moon size={15} />}
         </button>
 
-        {/* Interactive Notification Bell Dropdown */}
+        {/* Notification Bell */}
         <div className="relative shrink-0" ref={notificationDropdownRef}>
           <button
             onClick={() => {
@@ -291,13 +287,13 @@ export function Topbar({ onOpenMobileDrawer }: { onOpenMobileDrawer?: () => void
         <button
           onClick={() => setLanguage(nextLang[language])}
           title="Switch Language (English / हिंदी / मराठी)"
-          className="h-8 min-w-8 px-1.5 sm:px-2 rounded-full bg-primary-container text-on-primary-container flex items-center justify-center text-label-md font-bold hover:opacity-80 transition-opacity gap-1 cursor-pointer shrink-0"
+          className="h-8 px-1.5 rounded-full bg-primary-container text-on-primary-container flex items-center justify-center text-label-md font-bold hover:opacity-80 transition-opacity gap-1 cursor-pointer shrink-0"
         >
           <Globe size={13} className="shrink-0" />
-          <span>{langLabels[language]}</span>
+          <span className="text-xs">{langLabels[language]}</span>
         </button>
 
-        {/* User Profile & Logout Dropdown (Fix screen overflow on mobile) */}
+        {/* User Profile & Logout Dropdown (100% Fixed Screen Boundary) */}
         <div className="relative shrink-0" ref={userDropdownRef}>
           <button
             onClick={() => {
@@ -305,12 +301,12 @@ export function Topbar({ onOpenMobileDrawer }: { onOpenMobileDrawer?: () => void
               setDeviceDropdownOpen(false);
               setNotificationDropdownOpen(false);
             }}
-            className="h-8 px-1.5 sm:px-2 rounded-lg bg-surface-container border border-outline-variant flex items-center gap-1 hover:bg-surface-container-high transition-colors cursor-pointer shrink-0"
+            className="h-8 px-2 rounded-lg bg-primary/10 border border-primary/30 flex items-center gap-1.5 hover:bg-primary/20 transition-colors cursor-pointer shrink-0"
           >
-            <div className="h-5 w-5 rounded-full bg-primary/20 text-primary flex items-center justify-center font-bold text-[11px] shrink-0">
+            <div className="h-5 w-5 rounded-full bg-primary text-on-primary flex items-center justify-center font-bold text-[11px] shrink-0">
               {user?.name ? user.name.charAt(0).toUpperCase() : <User size={13} />}
             </div>
-            <span className="text-xs font-bold text-on-surface hidden lg:inline max-w-[100px] truncate">{user?.name || "Engineer"}</span>
+            <span className="text-xs font-bold text-on-surface hidden md:inline max-w-[80px] truncate">{user?.name || "Member"}</span>
             <ChevronDown size={13} className="text-on-surface-variant shrink-0" />
           </button>
 
@@ -318,10 +314,10 @@ export function Topbar({ onOpenMobileDrawer }: { onOpenMobileDrawer?: () => void
             <div className="absolute top-11 right-0 w-60 max-w-[calc(100vw-1.5rem)] bg-surface-container-lowest border border-outline-variant rounded-xl shadow-xl p-3 flex flex-col gap-2 z-50 animate-in fade-in duration-150">
               <div className="flex items-center gap-2.5 pb-2 border-b border-outline-variant/60">
                 <div className="h-8 w-8 rounded-full bg-primary/20 text-primary flex items-center justify-center font-bold text-xs shrink-0">
-                  {user?.name ? user.name.charAt(0).toUpperCase() : "E"}
+                  {user?.name ? user.name.charAt(0).toUpperCase() : "M"}
                 </div>
                 <div className="flex flex-col min-w-0">
-                  <span className="text-xs font-bold text-on-surface truncate">{user?.name || "Substation Engineer"}</span>
+                  <span className="text-xs font-bold text-on-surface truncate">{user?.name || "Substation Member"}</span>
                   <span className="text-[11px] text-on-surface-variant font-mono truncate">{user?.email || "user@grid.com"}</span>
                   <span className="text-[10px] text-primary font-semibold uppercase mt-0.5 truncate">{user?.role || "Technician"}</span>
                 </div>
