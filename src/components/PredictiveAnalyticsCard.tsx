@@ -1,5 +1,5 @@
-import { useEffect, useState } from "react";
-import { Brain, ShieldAlert, Mail, Send, CheckCircle2 } from "lucide-react";
+import { useEffect, useState, useRef } from "react";
+import { Brain, ShieldAlert, Mail, CheckCircle2, Zap } from "lucide-react";
 import { apiRequest, subscribeWebSocket } from "@/lib/api";
 import { useLiveReading } from "@/hooks/useSensorData";
 import { useAuth } from "@/context/AuthContext";
@@ -21,11 +21,13 @@ export function PredictiveAnalyticsCard() {
   const liveReading = useLiveReading();
   const { user } = useAuth();
 
-  const technicianEmail = user?.email || "technician@substation-grid.com";
-  const technicianName = user?.name || "Registered Field Technician";
-  const technicianRole = user?.role || "Substation Engineer";
+  const technicianEmail = user?.email || "samarthbhoite88@gmail.com";
+  const technicianName = user?.name || "Registered Technician";
+  const technicianRole = user?.role || "Technician";
 
-  const [emailSentState, setEmailSentState] = useState(false);
+  const [autoDispatched, setAutoDispatched] = useState(false);
+  const [lastDispatchedTime, setLastDispatchedTime] = useState<string | null>(null);
+  const lastDispatchedRiskRef = useRef<string>("");
 
   const [mlData, setMlData] = useState<MlAnalysisData>({
     healthScore: 95,
@@ -57,7 +59,7 @@ export function PredictiveAnalyticsCard() {
       healthScore = 25;
       riskLevel = "CRITICAL";
       failureMode = "Critical Over-current Overload";
-      recommendedAction = "CRITICAL OVERLOAD: Current exceeds 2.0A safety limit! Perform urgent field inspection & repair as soon as possible.";
+      recommendedAction = "CRITICAL OVERLOAD: Current exceeds 2.0A safety limit! Urgent field inspection & repair required as soon as possible.";
     } else if (cur > 1.0) {
       healthScore = 65;
       riskLevel = "HIGH";
@@ -67,7 +69,7 @@ export function PredictiveAnalyticsCard() {
       healthScore = 55;
       riskLevel = "HIGH";
       failureMode = "Core Overheating Stress";
-      recommendedAction = "WARNING: Transformer thermal baseline high. Perform urgent cooling oil inspection & repair as soon as possible.";
+      recommendedAction = "WARNING: Transformer thermal baseline high. Urgent cooling oil inspection & repair required as soon as possible.";
     } else if (volt > 0 && volt < 100) {
       healthScore = 75;
       riskLevel = "MODERATE";
@@ -108,6 +110,35 @@ export function PredictiveAnalyticsCard() {
     return unsubscribe;
   }, [liveReading.current, liveReading.voltage, liveReading.temperature, liveReading.health]);
 
+  // AUTOMATED EMAIL DISPATCH ENGINE: Triggers automatically on HIGH or CRITICAL risk state
+  useEffect(() => {
+    const isWarningOrCritical = mlData.riskLevel === "HIGH" || mlData.riskLevel === "CRITICAL";
+
+    if (isWarningOrCritical && lastDispatchedRiskRef.current !== mlData.riskLevel) {
+      lastDispatchedRiskRef.current = mlData.riskLevel;
+      const nowStr = new Date().toLocaleTimeString();
+
+      setAutoDispatched(true);
+      setLastDispatchedTime(nowStr);
+
+      // Trigger automated background email dispatch endpoint
+      apiRequest("/notifications/dispatch-email", {
+        method: "POST",
+        body: JSON.stringify({
+          email: technicianEmail,
+          technicianName,
+          role: technicianRole,
+          riskLevel: mlData.riskLevel,
+          recommendedAction: mlData.recommendedAction,
+          liveReading,
+        }),
+      }).catch(() => {});
+    } else if (!isWarningOrCritical) {
+      lastDispatchedRiskRef.current = "";
+      setAutoDispatched(false);
+    }
+  }, [mlData.riskLevel, mlData.recommendedAction, technicianEmail, technicianName, technicianRole]);
+
   const riskColors = {
     LOW: "bg-success/15 border-success/30 text-success",
     MODERATE: "bg-warning/15 border-warning/30 text-warning",
@@ -123,33 +154,6 @@ export function PredictiveAnalyticsCard() {
       : mlData.healthScore > 35
       ? "text-orange-400 bg-orange-500"
       : "text-error bg-error";
-
-  const handleDispatchEmail = () => {
-    setEmailSentState(true);
-    const subject = encodeURIComponent(`URGENT: Substation Repair Required for TR-0042 [${mlData.riskLevel} RISK]`);
-    const body = encodeURIComponent(
-      `SMART SUBSTATION TRANSFORMER DISPATCH REPORT\n` +
-      `---------------------------------------------\n` +
-      `Target Technician: ${technicianName} (${technicianRole})\n` +
-      `Technician Email: ${technicianEmail}\n\n` +
-      `Transformer ID: TR-0042\n` +
-      `Location: Pimpri Substation Grid (18.6499, 73.7452)\n` +
-      `Current Health Index: ${mlData.healthScore}%\n` +
-      `Condition Status: ${mlData.failureMode}\n` +
-      `Risk Level: ${mlData.riskLevel}\n\n` +
-      `LIVE SENSOR TELEMETRY:\n` +
-      `- Voltage: ${liveReading.voltage || 119.3} V\n` +
-      `- Current: ${liveReading.current || 1.5} A\n` +
-      `- Temperature: ${liveReading.temperature || 25.2} °C\n` +
-      `- Humidity: ${liveReading.humidity || 79.9} %\n\n` +
-      `REQUIRED REPAIR ACTION:\n` +
-      `${mlData.recommendedAction}\n\n` +
-      `Please perform urgent field inspection and repair as soon as possible.\n` +
-      `Timestamp: ${new Date().toLocaleString()}`
-    );
-
-    window.open(`mailto:${technicianEmail}?subject=${subject}&body=${body}`, "_blank");
-  };
 
   return (
     <div className="rounded-xl border border-outline-variant bg-surface-container-lowest p-md flex flex-col gap-md shadow-sm">
@@ -206,7 +210,7 @@ export function PredictiveAnalyticsCard() {
         </div>
       </div>
 
-      {/* Action Recommendation Card with Technician Email Dispatch */}
+      {/* Action Recommendation Card with AUTOMATED Email Dispatch Engine */}
       <div className="rounded-xl border border-outline-variant/60 bg-surface-container-lowest p-md flex flex-col gap-3">
         <div className="flex items-start gap-3">
           <div className="p-2 rounded-lg bg-warning/15 text-warning mt-0.5 shrink-0">
@@ -222,7 +226,7 @@ export function PredictiveAnalyticsCard() {
           </div>
         </div>
 
-        {/* Technician Registered Email Badge & Dispatch Action Button */}
+        {/* AUTOMATED TECHNICIAN EMAIL DISPATCH DISPLAY */}
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 pt-2 border-t border-outline-variant/40 bg-surface-container/30 p-2.5 rounded-lg">
           <div className="flex items-center gap-2 text-xs">
             <Mail size={15} className="text-primary shrink-0" />
@@ -235,26 +239,14 @@ export function PredictiveAnalyticsCard() {
             </div>
           </div>
 
-          <button
-            onClick={handleDispatchEmail}
-            className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer shadow-sm ${
-              emailSentState
-                ? "bg-success text-on-success"
-                : "bg-primary text-on-primary hover:opacity-90"
-            }`}
-          >
-            {emailSentState ? (
-              <>
-                <CheckCircle2 size={14} />
-                <span>Email Alert Dispatched</span>
-              </>
-            ) : (
-              <>
-                <Send size={14} />
-                <span>Send Email Alert to Technician</span>
-              </>
-            )}
-          </button>
+          <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold bg-success/20 text-success border border-success/30 shadow-sm animate-pulse">
+            <Zap size={14} className="text-success" />
+            <span>
+              {autoDispatched
+                ? `AUTO-DISPATCHED TO ${technicianEmail.split("@")[0].toUpperCase()} (${lastDispatchedTime || "Just Now"})`
+                : `AUTOMATED EMAIL DISPATCH ACTIVE`}
+            </span>
+          </div>
         </div>
       </div>
 
